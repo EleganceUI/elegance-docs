@@ -173,7 +173,9 @@ function makePrinter(crate) {
 		if (t.qualified_path) {
 			const q = t.qualified_path;
 			const self = type(q.self_type);
-			return q.trait ? `<${self} as ${pathName(q.trait)}>::${q.name}` : `${self}::${q.name}`;
+			// rustdoc leaves the trait's path empty when the source said `Self::Item` or `S::Key`.
+			const trait = q.trait ? pathName(q.trait) : '';
+			return trait ? `<${self} as ${trait}>::${q.name}` : `${self}::${q.name}`;
 		}
 		if (t.function_pointer) {
 			const f = t.function_pointer;

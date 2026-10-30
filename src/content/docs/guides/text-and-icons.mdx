@@ -1,0 +1,244 @@
+---
+title: Text, fonts, and icons
+description: "Show text, pick fonts and weights, mix styles in one paragraph, use your own fonts, and add icons."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+## Showing text
+
+`Text` shows a piece of text in one font and color:
+
+```cpp
+Text("Hello")
+Text([=] { return std::format("{} unread", unread()); }) // follows the state
+```
+
+```rust
+# let unread = State::new(3);
+Text("Hello")
+Text("{unread} unread") // follows the state
+```
+
+Text takes the width its words need. Given less, it wraps between words, and when it runs out of
+lines it ends with an ellipsis. You can limit the lines, and choose how wrapped lines line up:
+
+```cpp
+Text(article.body).line_limit(3);
+Text(caption).multiline_text_alignment(TextAlignment::center);
+```
+
+```rust
+# let (body, caption) = ("A long article", "A caption");
+Text(body).line_limit(3)
+Text(caption).multiline_text_alignment(.center)
+```
+
+Elegance shapes text properly, with ligatures, kerning, and combining marks. Characters a font
+doesn't have, such as Chinese, Japanese, or Korean text and symbols, come from the system's
+fonts, and emoji are drawn in color. Right-to-left scripts aren't supported yet.
+
+## Fonts
+
+A font is a family, a size in points, and a weight. For consistent typography, use the built-in
+text styles rather than sizes:
+
+| Style | Size | Weight |
+| --- | --- | --- |
+| `large_title` | 30 | bold |
+| `title` | 24 | semibold |
+| `title2` | 20 | semibold |
+| `title3` | 17 | semibold |
+| `headline` | 15 | semibold |
+| `body` | 15 | regular (the default) |
+| `callout` | 14 | regular |
+| `subheadline` | 13 | regular |
+| `footnote` | 12 | regular |
+| `caption` | 12 | regular |
+| `caption2` | 11 | regular |
+
+Or make your own from the system font:
+
+```cpp
+Font::system(17)                // the platform's interface font
+Font::system(32, Weight::bold)
+Font::title.weight(Weight::regular)
+Font::body.bold()
+Font::body.with_size(18)
+```
+
+```rust
+let interface = Font::system(17.0, Weight::Regular); // the platform's interface font
+let big = Font::system(32.0, Weight::Bold);
+let light_title = Font::title().weight(Weight::Regular);
+let strong = Font::body().bold();
+let larger = Font::body().with_size(18.0);
+```
+
+Set a font on one `Text`, or on a container to change everything inside it:
+
+```cpp
+Text("Title").font(Font::title).bold();
+
+VStack(Text("A"), Text("B")).font(Font::callout);              // both texts
+VStack(Text("A"), Image("gear")).font_weight(Weight::bold);    // bolder, each at its own size
+```
+
+```rust
+Text("Title").font(.title).bold()
+
+VStack {
+    Text("A")
+    Text("B")
+}
+.font(.callout) // both texts
+
+VStack {
+    Text("A")
+    Image("gear")
+}
+.font_weight(.bold) // bolder, each at its own size
+```
+
+The text color is the *foreground style*, which is also passed down to everything inside:
+
+```cpp
+Text("Details").foreground_style(ThemeColor::secondary);
+```
+
+```rust
+Text("Details").foreground_style(.secondary)
+```
+
+### Your own fonts
+
+Register a font file, or font data built into your app, under a family name. Register each weight
+separately; text uses the closest weight you registered.
+
+```cpp
+register_font("Inter", "fonts/Inter-Regular.ttf");
+register_font("Inter", "fonts/Inter-SemiBold.ttf", Weight::semibold);
+register_font("Brand", embedded_font_bytes); // std::span<const unsigned char>
+
+Text("Hello").font(Font::custom("Inter", 16, Weight::semibold));
+```
+
+```rust
+# fn f() -> Result<(), Error> {
+register_font("Inter", "fonts/Inter-Regular.ttf", Weight::Regular)?;
+register_font("Inter", "fonts/Inter-SemiBold.ttf", Weight::Semibold)?;
+register_font_data("Brand", &std::fs::read("fonts/Brand.ttf").unwrap(), Weight::Regular)?;
+
+let _ = elg! { Text("Hello").font(Font::custom("Inter", 16.0, Weight::Semibold)) };
+# Ok(()) }
+```
+
+Showing text in a family that isn't registered is an error, reported when the text appears.
+
+## Mixing styles in a paragraph
+
+`StyledText` lays out *runs* of differently styled text as one paragraph that wraps as a whole.
+A run can be bold or italic, have its own color or a highlight behind it, be clickable, or show a
+small view, like a custom emoji, in place of its text:
+
+```cpp
+StyledText({{"Hey "},
+            {"@Ana", {.color = ThemeColor::accent, .background = mention_tint}, open_profile},
+            {" look at "},
+            {"this", {.weight = Weight::bold}},
+            {"!"}});
+```
+
+```rust
+# let open_profile = || {};
+# let mention_tint = Color::hex(0x2B3A67);
+let message = StyledText(vec![
+    TextRun::new("Hey "),
+    TextRun::new("@Ana")
+        .style(RunStyle::default().color(Color::hex(0x7AA2F7)).background(mention_tint))
+        .on_tap(open_profile),
+    TextRun::new(" look at "),
+    TextRun::new("this").style(RunStyle::default().weight(Weight::Bold)),
+    TextRun::new("!"),
+]);
+```
+
+<Lang only="rust">A `StyledText` is a view: put it in `elg!` as `{ message }`.</Lang>
+
+Anything a run doesn't set, like the size or the color, comes from the environment, as with
+`Text`.
+
+## Icons
+
+Elegance comes with [Phosphor](https://phosphoricons.com), a set of about 1,500 icons. An icon
+behaves like text: it takes the font size, weight, and color around it, and lines up with text
+next to it.
+
+```cpp
+Image("gear")
+Image("heart").foreground_style(ThemeColor::danger).font(Font::title2)
+Image("bell").font_weight(Weight::bold)     // Phosphor's bold style
+Image("heart.fill")                         // the filled variant
+Image("phosphor.star.duotone")              // set, icon, variant
+```
+
+```rust
+Image("gear")
+Image("heart").foreground_style(.danger).font(.title2)
+Image("bell").font_weight(.bold)  // Phosphor's bold style
+Image("heart.fill")               // the filled variant
+Image("phosphor.star.duotone")    // set, icon, variant
+```
+
+The names are Phosphor's own; find them at [phosphoricons.com](https://phosphoricons.com). If you
+mistype one, the error lists the closest names. Phosphor's thin, light, regular, and bold styles
+follow the font weight, and `fill` and `duotone` are variants.
+
+`Label` puts an icon in front of a title, spaced right for buttons, menus, and lists:
+
+```cpp
+Button(Label("Record", {.system_name = "microphone"}), record);
+```
+
+```rust
+# let record = || {};
+Button(Label("Record", "microphone"), record)
+```
+
+A button that's only an icon needs a label for screen readers, which can't describe a picture:
+
+```cpp
+Button(Image("trash"), remove).accessibility_label("Delete");
+```
+
+```rust
+# let remove = || {};
+Button(Image("trash"), remove).accessibility_label("Delete")
+```
+
+### Your own icons
+
+Any icon font with a list of names can be added as a set: the CSS that comes with icon web fonts, a
+JSON map, or a file of `name codepoint` lines.
+
+```cpp
+register_icon_set("brand", {.font = "brand-icons.ttf", .names = "brand-icons.css"});
+Image("brand.logo");
+
+set_default_icon_set("brand"); // names without a set now come from "brand"
+```
+
+```rust
+# fn f() -> Result<(), Error> {
+register_icon_set("brand", IconSetOptions {
+    font: IconFont::File("brand-icons.ttf".into()),
+    names: "brand-icons.css".into(),
+    ..Default::default()
+})?;
+let _ = elg! { Image("brand.logo") };
+
+set_default_icon_set("brand")?; // names without a set now come from "brand"
+# Ok(()) }
+```
+
+A set can also have several weights and variants, like Phosphor's.

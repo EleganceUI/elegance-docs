@@ -1,18 +1,19 @@
 ---
 title: Animation
-description: "Explicit and implicit animations, springs and curves, transitions for views that come and go, and layout animation."
+description: "Animate state changes, choose springs and curves, make views enter and leave with transitions, and repeat animations."
 ---
 
 import Example from '../../../components/Example.astro';
+import Lang from '../../../components/Lang.astro';
 
-In Elegance you don't animate properties directly. You change state, and say that the change
-should animate. Everything the change causes then moves smoothly to its new value: colors, fills,
-strokes, opacity, offsets, and layout. Views added or removed by `If` and `ForEach` animate in and
-out with their transition.
+In Elegance you don't animate a property from one value to another. You change your state, and
+say that the change should be animated. Everything the change affects then moves smoothly to where
+it ends up: colors, fills, strokes, opacity, offsets, sizes, and positions. Views that appear or
+disappear because of it come and go with a transition.
 
-## Explicit animation
+## Animating a change
 
-Wrap state changes in `with_animation`:
+Wrap the change in `with_animation`:
 
 ```cpp
 Button("Toggle", [=] {
@@ -20,13 +21,18 @@ Button("Toggle", [=] {
 });
 ```
 
-Every property change caused by the writes inside animates with that animation, including frames
-moving and resizing, and views appearing and disappearing.
+```rust
+# let expanded = State::new(false);
+Button("Toggle", move || with_animation(Animation::spring(0.5, 0.825), || expanded.toggle()))
+```
 
-## Implicit animation
+Everything that changes because of what you did inside it animates, including views moving and
+resizing, and views appearing and disappearing.
 
-`.animation(animation, value)` animates changes inside a view whenever `value` changed in the same
-update, however the change happened:
+## Animating whenever a value changes
+
+Sometimes it's simpler to say "this view always animates when this value changes", wherever the
+change comes from. That's what `.animation(animation, value)` does:
 
 ```cpp
 Circle()
@@ -35,53 +41,94 @@ Circle()
     .animation(Animation::spring(0.35, 0.7), on);
 ```
 
-`value` is a state, a closure, or a plain value. It should support `==`.
+```rust
+# let on = State::new(false);
+Circle()
+    .fill(move || if on.get() { Color::hex(0x9ECE6A) } else { Color::hex(0x565F89) })
+    .offset(move || if on.get() { 40.0 } else { 0.0 }, 0.0)
+    .animation(Animation::spring(0.35, 0.7), on)
+```
+
+The value can be a state, a closure, or a plain value; Elegance compares it to its previous value
+to see whether it changed.
 
 ## Curves and springs
+
+An animation's *curve* decides how it gets from start to finish:
 
 ```cpp
 Animation::linear(0.25)
 Animation::ease_in(0.25)
 Animation::ease_out(0.2)
 Animation::ease_in_out(0.35)
-Animation::spring()                 // response 0.5 s, damping 0.825
-Animation::spring(0.35, 0.6)        // quicker and bouncier
-Animation::smooth(0.4)              // a spring without overshoot
+Animation::spring()              // settles in about half a second
+Animation::spring(0.35, 0.6)     // quicker and bouncier
+Animation::smooth(0.4)           // a spring that doesn't overshoot
 Animation::ease_out(0.2).delay(0.1)
 ```
 
-Durations are in seconds. A spring's `response` is roughly the time to reach the target, and its
-`damping_fraction` controls the bounce: 1 settles without overshooting, lower values bounce. The
-parameters mean the same as SwiftUI's.
+```rust
+let curves = [
+    Animation::linear(0.25),
+    Animation::ease_in(0.25),
+    Animation::ease_out(0.2),
+    Animation::ease_in_out(0.35),
+    Animation::spring(0.5, 0.825), // settles in about half a second
+    Animation::spring(0.35, 0.6),  // quicker and bouncier
+    Animation::smooth(0.4),        // a spring that doesn't overshoot
+    Animation::ease_out(0.2).delay(0.1),
+];
+```
 
-### Custom curves
+Times are in seconds. Springs feel the most natural for things people move or toggle. A spring's
+first number is roughly how long it takes to get there; the second is how much it bounces, where 1
+means it settles without overshooting and lower numbers bounce more. They mean the same as in
+SwiftUI.
 
-`Animation::custom` takes your own easing function. It's called with the fraction of the duration
-that has elapsed, from 0 to 1, and returns how far along the animation is: 0 at the start, 1 at
-the target.
+### Your own curve
+
+`Animation::custom` takes an easing function. It's called with how much of the time has passed,
+from 0 to 1, and returns how far along the animation should be, 0 at the start and 1 at the end:
 
 ```cpp
 // Ease-out cubic over 0.3 s
 Animation::custom([](double t) { return 1 - std::pow(1 - t, 3); }, 0.3)
 
-// Back-out: overshoots a little before settling
+// Overshoots a little before settling
 Animation::custom([](double t) {
     const double c = 1.70158;
     return 1 + (c + 1) * std::pow(t - 1, 3) + c * std::pow(t - 1, 2);
 }, 0.4)
 ```
 
-The curve can return values below 0 or above 1 to undershoot or overshoot. Once the duration is up
-the value lands on the target, whatever the curve returns at 1. The curve runs every frame on the UI
-thread, so keep it cheap and don't throw from it.
+```rust
+// Ease-out cubic over 0.3 s
+let cubic = Animation::custom(|t| 1.0 - (1.0 - t).powi(3), 0.3);
 
-A change made while an animation is running starts from wherever the value is at that moment, so
-nothing jumps.
+// Overshoots a little before settling
+let back = Animation::custom(|t| {
+    let c = 1.70158;
+    1.0 + (c + 1.0) * (t - 1.0).powi(3) + c * (t - 1.0).powi(2)
+}, 0.4);
+```
 
-## Transitions
+The function can go below 0 or above 1 to undershoot or overshoot; when the time is up, the value
+lands where it's going regardless. It runs every frame, so keep it quick.
 
-When an `If` or `ForEach` adds or removes a view during an animated change, the view's transition
-decides how it enters and leaves. The default is a fade.
+<Lang only="cpp">
+
+`Animation::timing_curve(x1, y1, x2, y2, duration)` is a cubic Bézier curve, like CSS's
+`cubic-bezier()`, handy when you're matching a design or a web animation.
+
+</Lang>
+
+If something changes again while it's still animating, the new animation starts from wherever it
+is at that moment, so nothing jumps.
+
+## Views coming and going
+
+When a view is added or removed during an animated change, its *transition* decides how it enters
+and leaves. Unless you choose one, it fades.
 
 ```cpp
 If(shown,
@@ -92,25 +139,85 @@ ForEach(items, &Item::id, [](const Item& item) {
 });
 ```
 
-| Transition | Effect |
+```rust
+# #[derive(Clone, PartialEq)] struct Item { id: i64, name: String }
+# let (shown, items) = (State::new(true), State::new(Vec::<Item>::new()));
+if shown.get() {
+    Text("Saved").transition(Transition::move_edge(.top).combined(Transition::opacity()))
+}
+
+ForEach(items, id: |i| i.id) { item in
+    Text(item.name.clone()).transition(Transition::scale(0.8).combined(Transition::opacity()))
+}
+```
+
+| Transition | What it does |
 | --- | --- |
-| `Transition::opacity()` | Fades (the default) |
-| `Transition::scale(from, anchor)` | Grows from, and shrinks to, a fraction of its size, around its middle or `anchor` (`Alignment::top`, ...) |
-| `Transition::offset(x, y)` | Moves in from an offset |
-| `Transition::move(edge)` | Slides in from beyond an edge of its frame |
-| `Transition::slide()` | In from the leading edge, out to the trailing edge |
-| `Transition::identity()` | Appears and disappears at once |
-| `Transition::asymmetric(in, out)` | Different transitions for insertion and removal |
+| opacity | fades in and out (the default) |
+| scale | grows from, and shrinks to, a fraction of its size, around its middle or a corner or edge you pick |
+| offset | moves in from somewhere nearby |
+| move | slides in from beyond one of its edges |
+| slide | comes in from the leading edge, leaves toward the trailing edge |
+| identity | appears and disappears at once |
+| asymmetric | one transition in, another out |
 
-Combine transitions with `.combined(...)`.
+Combine transitions with `.combined(...)`, as above.
 
-## Layout animation
+## Layout moves too
 
-Frames are animated too: during an animated change, views ease to their new position and size.
-Reordering a `ForEach`, for example, slides each item to its new place.
+Positions and sizes animate along with everything else: during an animated change, views glide to
+their new place. Reordering a list, for example, slides each row to where it now belongs.
 
-To make part of the UI snap instead, use `.animates_layout(false)`. Colors, opacity and transitions
-still animate inside it.
+For a part of the interface that should snap into place instead, use `.animates_layout(false)`.
+Colors, opacity, and transitions inside it still animate.
+
+## Repeating animations
+
+<Lang only="rust">
+
+The C++ API can repeat an animation a number of times, or forever, for loaders and attention
+effects. The Rust bindings don't have repeating animations yet.
+
+</Lang>
+
+<Lang only="cpp">
+
+An animation can play several times, or keep going for as long as the view is on screen: loading
+indicators, a pulsing badge. `repeat_count(n)` plays it `n` times, and `repeat_forever()` keeps
+going until the value changes or the view goes away. By default every other repeat runs backward,
+so the animation goes back and forth; pass `false` to start over from the beginning each time
+instead, like a spinner turning.
+
+Combined with `on_appear`, which runs when a view appears, this is all a loader needs. Each dot
+here starts a little further along with a negative delay, so they chase each other:
+
+```cpp
+View OrbitingDots() {
+    const State<bool> spinning(false);
+    const auto dot = [=](Color color, double ahead) {
+        return Circle()
+            .fill(color)
+            .frame(12, 12)
+            .offset(0, -6)
+            .frame(72, 72, Alignment::top)
+            .rotation_effect([=] { return spinning() ? 360.f : 0.f; })
+            .animation(Animation::timing_curve(0.55, 0.1, 0.45, 0.9, 1.4).delay(-ahead).repeat_forever(false),
+                       spinning);
+    };
+    return ZStack(Circle().stroke(Color::white.opacity(0.12f), 2),
+                  dot(Color::hex(0xFF6B3D), 0),
+                  dot(Color::hex(0xFFD84D), 0.12),
+                  dot(Color::hex(0x7EA0FF), 0.24))
+        .frame(72, 72)
+        .accessibility_label("Loading")
+        .on_appear([=] { spinning = true; });
+}
+```
+
+A negative delay starts an animation partway through, as in CSS: `delay(-0.12)` begins where it
+would be 0.12 seconds in.
+
+</Lang>
 
 ## Example
 

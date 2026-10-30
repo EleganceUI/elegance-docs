@@ -1,16 +1,20 @@
 ---
 title: Lists and dynamic content
-description: "Showing views conditionally and repeating them for collections - If, ForEach, ScrollView, lazy stacks and selection."
+description: "Show views only when they're needed, repeat them for every item in a collection, scroll, and select rows."
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Lang from '../../../components/Lang.astro';
 
-Most views are built once. Structure that changes with state goes through two views: `If`, which
-switches between views, and `ForEach`, which repeats a view for each item of a collection.
+Most of an interface is built once and then just updates. Some parts come and go: an empty-state
+message, a row for each message in an inbox, a details panel that opens. This page covers
+showing views conditionally, repeating them for a collection, scrolling, and letting people select
+rows.
 
-## If
+## Showing a view conditionally
 
-`If` shows one view while a condition holds, and another (or nothing) otherwise:
+<Lang only="cpp">`If` shows one view while a condition holds, and another one (or nothing) otherwise:</Lang>
+<Lang only="rust">Inside `elg!`, an `if` shows one view while a condition holds, and another one (or nothing) otherwise. It's reactive: the condition is checked again whenever a state it reads changes.</Lang>
 
 ```cpp
 If([=] { return items().empty(); },
@@ -20,48 +24,90 @@ If([=] { return items().empty(); },
 If(show_details, Details()); // a State<bool> works as the condition
 ```
 
-Switching branches removes the old branch's views, including any state created inside them, and
-builds the other branch. Inside a stack, the shown branch behaves as a direct child of the stack,
-and an empty branch takes no space.
+```rust
+# let items = State::new(Vec::<String>::new());
+# let show_details = State::new(false);
+if items.read().is_empty() {
+    Text("Nothing here yet")
+} else {
+    Text(move || format!("{} items", items.read().len()))
+}
 
-Changes made inside `with_animation` animate the switch: the views come and go with their
-[transition](../animation/#transitions) (a fade by default).
+if show_details.get() {
+    Text("Details")
+}
+```
 
-## ForEach
+<Lang only="rust">
 
-`ForEach` makes one view per item of a collection. Each item has a **key** that identifies it
-across changes:
+`match` works the same way, for a value with more than two cases. Each arm is a view, and the
+view is rebuilt when the value changes:
+
+```rust
+# #[derive(Clone, PartialEq)] enum Status { Loading, Failed(String), Ready }
+# let status = State::new(Status::Loading);
+match status.get() {
+    Status::Loading => Progress(),
+    Status::Failed(message) => Text(message).foreground_style(.danger),
+    Status::Ready => Text("Ready"),
+}
+```
+
+</Lang>
+
+When the condition changes, the views of the old branch are removed, along with any state created
+inside them, and the other branch is built. In a stack, the branch acts like a direct child of the
+stack, and a branch with nothing in it takes no space.
+
+If the change happens inside `with_animation`, the views come and go with their
+[transition](../animation/#transitions), a fade unless you choose another.
+
+## A view for each item
+
+`ForEach` makes a view for each item in a collection. Each item needs a **key** that says which
+item it is, so Elegance can tell items apart when the collection changes:
 
 ```cpp
 ForEach(todos, &Todo::id, [](const Todo& todo) { return TodoRow(todo); })
-ForEach(todos, [](const Todo& t) { return t.id; }, TodoRow)
 ```
 
-The collection is a `std::vector`, or a `State`, `Computed` or closure that produces one. When it
-changes:
+```rust
+# #[derive(Clone, PartialEq)] struct Todo { id: i64, title: String }
+# let todos = State::new(Vec::<Todo>::new());
+ForEach(todos, id: |t| t.id) { todo in
+    Text(todo.title.clone())
+}
+```
 
-- items whose key and value are unchanged keep their views, and the state inside them;
-- items whose value changed are rebuilt;
-- removed items are removed, new ones are built.
+The collection can be a fixed list, a state, a computed value, or a closure that returns one.
+When it changes:
 
-Keys are integers, enums or strings. For collections of integers or strings, the values can be
-their own keys:
+- items whose key and value are unchanged keep their views, including any state inside them;
+- items whose value changed get new views;
+- items that are gone are removed, and new items get views.
+
+Keys are integers or strings<Lang only="cpp" inline> (or enums)</Lang>. A list of integers or strings can use the values as their own keys:
 
 ```cpp
 ForEach(std::vector<std::string>{"Red", "Green", "Blue"}, [](const std::string& name) { return Text(name); })
 ```
 
-Inside a stack, the items are direct children of the stack, so they get its spacing and
-alignment. Elsewhere they stack vertically.
+```rust
+ForEach(vec!["Red", "Green", "Blue"]) { name in
+    Text(*name)
+}
+```
+
+In a stack, the items are children of the stack, so they get its spacing and alignment.
 
 <Aside type="tip">
-Give items an `operator==` (`= default` is enough). Without one, `ForEach` can't tell whether an
-item changed and keeps its existing view.
+<Lang only="cpp" inline>Give your item type an `operator==` (`= default` is enough). Without one, `ForEach` can't tell an item changed, and keeps its old view.</Lang>
+<Lang only="rust" inline>Items need `Clone` and `PartialEq`: that's how `ForEach` tells an item changed and needs a new view.</Lang>
 </Aside>
 
 ### Filtering and sorting
 
-Pass a closure or a `Computed` that produces the visible items:
+To show only some items, or show them in a different order, give `ForEach` a computed value:
 
 ```cpp
 const auto visible = computed([=] {
@@ -69,88 +115,140 @@ const auto visible = computed([=] {
     std::erase_if(list, [&](const Todo& t) { return hide_done() && t.done; });
     return list;
 });
+
 ForEach(visible, &Todo::id, TodoRow)
 ```
 
-### Rebuilding a view when a value changes
+```rust
+# #[derive(Clone, PartialEq)] struct Todo { id: i64, title: String, done: bool }
+# let todos = State::new(Vec::<Todo>::new());
+# let hide_done = State::new(false);
+let visible = computed(move || {
+    todos.read().iter().filter(|t| !(hide_done.get() && t.done)).cloned().collect::<Vec<_>>()
+});
 
-A `ForEach` over zero or one item is a handy way to rebuild part of the UI whenever a value
-changes: the key changes, so the old view is removed and a new one is built.
-
-```cpp
-// A new player for each file opened.
-ForEach([=] { return file().empty() ? std::vector<std::string>{} : std::vector{file()}; },
-        [](const std::string& path) { return VideoView(VideoPlayer(path)); })
+elg! {
+    VStack {
+        ForEach(visible, id: |t| t.id) { todo in Text(todo.title.clone()) }
+    }
+}
 ```
 
-## ScrollView
+## Scrolling
 
-A `ScrollView` shows content larger than its space, clipped and scrollable with the wheel,
-trackpad, scroll bars and keyboard:
+A `ScrollView` shows content that's bigger than the space it has, and scrolls it with the mouse
+wheel, the trackpad, the scroll bars, and the keyboard:
 
 ```cpp
 ScrollView(VStack({.alignment = HorizontalAlignment::leading}, rows...));
 ScrollView({.axes = ScrollAxes::horizontal, .shows_indicators = false}, HStack(cards...));
 ```
 
-The scroll view takes all the space it's offered and gives its content its ideal size along the
-scroll axes. Focusing a view with Tab scrolls it into sight.
+```rust
+ScrollView {
+    VStack(alignment: .leading) { /* rows */ }
+}
+ScrollView(axes: .horizontal, shows_indicators: false) {
+    HStack { /* cards */ }
+}
+```
 
-Wheel scrolling stays with the scroll view where it started until the wheel pauses for half a
-second or the mouse moves. Scrolling a page down past a horizontal shelf keeps scrolling the
-page; stopping over the shelf and scrolling again scrolls it sideways (a mouse wheel's vertical
-notches scroll a horizontal-only view). Shift+wheel always scrolls sideways.
+The scroll view takes all the space it's offered, and lets its content be as long as it likes in
+the direction it scrolls. When Tab moves focus to a view that's out of sight, the scroll view
+brings it into view.
 
-On a macOS trackpad, scrolling follows the fingers directly. Each swipe follows the axis it
-started along, like AppKit, so a sideways swipe over a shelf scrolls the shelf, and an upward one
-over the shelf scrolls the page. Past the ends the content stretches with resistance and springs
-back when you let go. Let go while moving and it glides on at your fingers' speed, slowing down
-like UIScrollView, and bounces off the ends. Touching the trackpad again stops it.
+Scrolling behaves the way people expect on each platform. A scroll that starts over the page
+keeps scrolling the page, even as a horizontal shelf passes under the pointer; Shift and the wheel
+scroll sideways. On a Mac trackpad, content follows your fingers, glides on when you let go, and
+stretches and springs back at the ends.
 
 ### Scrolling from code
 
-Create a `ScrollPosition`, pass it in the options, and call it from event handlers:
+Make a `ScrollPosition`, give it to the scroll view, and use it from anywhere:
 
 ```cpp
 const auto position = ScrollPosition();
 
 ScrollView({.position = position}, LazyVStack(ForEach(messages, &Message::id, MessageRow)));
+
 Button("Newest", [=] { position.scroll_to_end(); });
 Button("Top", [=] { position.scroll_to_top(); });
 Button("Pinned", [=] { position.scroll_to(pinned_id()); }); // a ForEach key
 ```
 
-### Chat logs
+```rust
+# #[derive(Clone, PartialEq)] struct Message { id: i64, text: String }
+# let messages = State::new(Vec::<Message>::new());
+# let pinned_id = State::new(0_i64);
+let position = ScrollPosition::new();
 
-With `.sticks_to_end = true` a scroll view starts at the end, and while it's scrolled to the end
-it stays there as its content grows: new messages, or images loading in. It snaps rather than
-animating. Scroll back even a little and it stays where it is, so reading history isn't
-interrupted; scroll to the end again to follow it.
+elg! {
+    VStack {
+        ScrollView(position: position.clone()) {
+            LazyVStack {
+                ForEach(messages, id: |m| m.id) { message in Text(message.text.clone()) }
+            }
+        }
+        HStack {
+            Button("Newest", { let position = position.clone(); move || position.scroll_to_end(true) })
+            Button("Top", { let position = position.clone(); move || position.scroll_to_top(true) })
+            Button("Pinned", move || position.scroll_to(pinned_id.get())) // a ForEach key
+        }
+    }
+}
+```
 
-Lazy stacks also keep what's on screen in place when rows above it change size (estimates
-replaced by real heights, or items inserted above), so loading older messages doesn't jump.
+### Chat and logs
+
+A scroll view that *sticks to the end* starts at the bottom, and stays there as content is added:
+new messages, or images that finish loading. Scroll up even a little and it stops following, so
+reading older messages isn't interrupted; scroll back to the bottom and it follows again.
 
 ```cpp
 ScrollView({.sticks_to_end = true}, LazyVStack(ForEach(messages, &Message::id, MessageRow)));
 ```
 
-## Lazy stacks
+```rust
+# #[derive(Clone, PartialEq)] struct Message { id: i64, text: String }
+# let messages = State::new(Vec::<Message>::new());
+ScrollView(sticks_to_end: true) {
+    LazyVStack {
+        ForEach(messages, id: |m| m.id) { message in Text(message.text.clone()) }
+    }
+}
+```
 
-A `VStack` builds all of its children. For long collections, use `LazyVStack` or `LazyHStack`
-inside a scroll view: only the items in or near the visible area are built, and the size of the
-rest is estimated from the items seen so far. Items scrolled far away are destroyed, with their
-state.
+Lazy stacks also keep what you're looking at in place when rows above it change size or are
+inserted, so loading older messages doesn't make the view jump.
+
+## Long lists
+
+A `VStack` builds every one of its children. For a long collection, use a `LazyVStack` (or
+`LazyHStack`) inside a scroll view: it builds only the rows on screen or close to it, estimates the
+size of the rest, and throws away rows that scroll far out of sight. It handles tens of thousands
+of items.
 
 ```cpp
 ScrollView(LazyVStack({.spacing = 4}, ForEach(messages, &Message::id, MessageRow)));
 ```
 
-The argument must be a `ForEach`. Lazy stacks handle tens of thousands of items.
+```rust
+# #[derive(Clone, PartialEq)] struct Message { id: i64, text: String }
+# let messages = State::new(Vec::<Message>::new());
+ScrollView {
+    LazyVStack(spacing: 4) {
+        ForEach(messages, id: |m| m.id) { message in Text(message.text.clone()) }
+    }
+}
+```
 
-## Lists of rows
+A lazy stack's content must be a `ForEach`. Rows that scroll away are destroyed, with any state in
+them, so keep state that matters outside the rows.
 
-There's no `List` view: a list is a lazy stack in a scroll view, styled like any other view. A
-`LazyVStack` can draw lines between its items (`separators`), in the middle of its spacing:
+### Lines between rows
+
+There's no separate list view in Elegance: a list is a lazy stack in a scroll view, styled like
+anything else. A `LazyVStack` can draw lines between its rows:
 
 ```cpp
 ScrollView(LazyVStack({.spacing = 0, .separators = StackSeparators{.inset = 16}},
@@ -160,14 +258,26 @@ ScrollView(LazyVStack({.spacing = 0, .separators = StackSeparators{.inset = 16}}
                .background(ThemeColor::surface, RoundedRectangle(10)));
 ```
 
-`StackSeparators` takes a `color` (`ThemeColor::outline` by default, and reactive), an `inset`
-from the leading edge, and a `thickness`. Give rows their own padding and background; the stack
-only places them.
+```rust
+# #[derive(Clone, PartialEq)] struct Contact { id: i64, name: String }
+# let contacts = State::new(Vec::<Contact>::new());
+ScrollView {
+    LazyVStack(spacing: 0, separators: StackSeparators::default().inset(16)) {
+        ForEach(contacts, id: |c| c.id) { contact in
+            Text(contact.name.clone()).padding(horizontal: 16, vertical: 10)
+        }
+    }
+    .background_in(.surface, RoundedRectangle(10))
+}
+```
 
-## Selection
+The separators can have their own color, thickness, and inset from the leading edge. Rows bring
+their own padding and background; the stack only places them.
 
-`.selection(binding)` on a stack over a `ForEach` makes its rows selectable, by their `ForEach`
-keys. Bind a `std::optional` for one row at a time, or a `std::set` for several:
+## Selecting rows
+
+`.selection` on a stack over a `ForEach` makes its rows selectable. Bind it to an optional key for
+one row at a time, or to a set of keys for several:
 
 ```cpp
 const State<std::optional<int>> open;   // one row
@@ -178,37 +288,68 @@ ScrollView(LazyVStack(ForEach(mails, &Mail::id, MailRow))
 ScrollView(LazyVStack(ForEach(files, &File::name, FileRow)).selection(chosen.binding()));
 ```
 
-The key type is the `ForEach`'s (`int` for an `int` id, `std::string` for string keys). It works on
-`VStack`, `HStack`, `LazyVStack` and `LazyHStack`. Put it on the stack itself: the stack's other
-children, such as a header, aren't rows.
+```rust
+# use std::collections::BTreeSet;
+# #[derive(Clone, PartialEq)] struct Mail { id: i64, subject: String }
+# let mails = State::new(Vec::<Mail>::new());
+# fn show(id: i64) {}
+let open = State::new(None::<i64>);          // one row
+let chosen = State::new(BTreeSet::<i64>::new()); // any number of rows
 
-- **Pointer**: a click selects a row, anywhere in it. Clicks that a control in the row takes (a
-  `Button`, a `Toggle`) don't change the selection.
-- **Keyboard**: the stack is one Tab stop. Up and Down move the selection (Left and Right in an
-  `HStack`), and Home and End go to the ends. The selected row scrolls into view, in a lazy stack
-  too, even when it hadn't been built yet.
-- **Activating**: Enter, or a double click on a row, calls `on_activate` with its key.
-- **Several rows** (a `std::set`): Ctrl+click (Cmd+click on macOS) adds or removes a row,
-  Shift+click and Shift+arrows select the range from where it started, and Ctrl+A (Cmd+A) selects
-  all.
-- **Screen readers** see a list box whose rows are its options, selected or not, and can select
-  them.
+elg! {
+    VStack {
+        ScrollView {
+            LazyVStack {
+                ForEach(mails, id: |m| m.id) { mail in Text(mail.subject.clone()) }
+            }
+            .selection_with(open, |id| show(*id))
+        }
+        ScrollView {
+            LazyVStack {
+                ForEach(mails, id: |m| m.id) { mail in Text(mail.subject.clone()) }
+            }
+            .selection(chosen)
+        }
+    }
+}
+```
 
-Setting the binding selects rows from code. Keys that aren't in the `ForEach` are left alone, so
-remove a deleted item's key yourself.
+The keys are the `ForEach`'s keys. Selection works on `VStack`, `HStack`, `LazyVStack`, and
+`LazyHStack`; put it on the stack itself, so other views in the stack, like a header, aren't
+rows.
 
-### How rows look
+It works the way people expect from their platform:
 
-The environment's `RowStyle` draws each row. The default, `HighlightRowStyle`, pads the row and
-puts it on a rounded highlight: the tint while it's selected, with text and icons in
-`ThemeColor::on_accent`; faint while the pointer is over it; and outlined while it's the row the
-keys act on. Its options change the colors, corner radius and padding:
+- **Clicking** a row selects it. Clicks on a control inside the row, such as a button or a toggle,
+  go to the control instead.
+- **The keyboard**: the stack is one Tab stop. The arrow keys move the selection, and Home and End
+  jump to the ends. The selected row scrolls into view, even in a lazy stack that hadn't built it
+  yet.
+- **Opening** a row, with Return or a double click, calls `on_activate` with its key.
+- **Several rows**: Ctrl-click (Cmd-click on a Mac) adds or removes a row, Shift-click and
+  Shift-arrows select a range, and Ctrl-A (Cmd-A) selects everything.
+- **Screen readers** see a list box with selectable options.
+
+Changing the bound state selects rows from code. Keys that aren't in the list are ignored, so when
+you delete an item, remove its key from the selection too.
+
+### How selected rows look
+
+The default row style pads each row and draws it on a rounded highlight: the accent color while
+it's selected (with its text and icons in a contrasting color), a faint one while the pointer is
+over it, and an outline on the row the keyboard is on. You can change its colors, corner radius,
+and padding:
 
 ```cpp
 list.row_style(HighlightRowStyle{{.corner_radius = 0, .padding = EdgeInsets::symmetric(16, 10)}});
 ```
 
-A row's own views can read whether it's selected, to change colors that aren't the foreground:
+```rust
+.row_style(HighlightRowStyle::new().corner_radius(0).padding(EdgeInsets::default().horizontal(16).vertical(10)))
+```
+
+Text and icons switch color by themselves. For anything else, a row can ask whether it's
+selected:
 
 ```cpp
 struct MailRow {
@@ -224,8 +365,23 @@ struct MailRow {
 };
 ```
 
-`PlainRowStyle` draws the content alone, for rows that show their state themselves. A style of
-your own is described in [Styles](../styles/#row-styles).
+```rust
+#[component]
+fn MailRow(subject: String, sender: String) -> impl IntoView {
+    let selected = Environment::<RowSelectedKey>::new();
+    elg! {
+        VStack(alignment: .leading) {
+            Text(subject)
+            Text(sender).foreground_style(move || {
+                if selected.get() { ThemeColor::OnAccent } else { ThemeColor::Secondary }
+            })
+        }
+    }
+}
+```
 
-See the [todos example](../../examples/#todos) for a complete list with adding, removing and
-checking off items.
+`PlainRowStyle` draws rows with no highlight at all, for rows that show their state themselves.
+To design your own, see [Control styles](../styles/#row-styles).
+
+The [to-do example](../../examples/#todos) is a complete list you can add to, check off, and delete
+from.

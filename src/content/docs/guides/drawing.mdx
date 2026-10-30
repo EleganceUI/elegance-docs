@@ -4,6 +4,7 @@ description: "Shapes, fills, strokes and gradients; vector paths and SVG; shapes
 ---
 
 import Example from '../../../components/Example.astro';
+import Lang from '../../../components/Lang.astro';
 
 ## Shapes
 
@@ -18,6 +19,14 @@ Capsule()                  // fully rounded ends
 Circle()                   // the largest circle that fits, centered
 ```
 
+```rust
+Rectangle()
+RoundedRectangle(12)
+RoundedRectangle(CornerRadii { top_left: 12.0, top_right: 12.0, ..Default::default() })
+Capsule()   // fully rounded ends
+Circle()    // the largest circle that fits, centered
+```
+
 Rounded rectangles, capsules and circles are drawn as signed distance fields with analytic
 anti-aliasing, so they're cheap and crisp at any size.
 
@@ -30,6 +39,13 @@ RoundedRectangle(12).stroke_border(Color::white, 2);          // inside the edge
 RoundedRectangle(12).fill(ThemeColor::surface).stroke_border(ThemeColor::outline, 1);
 ```
 
+```rust
+Circle().fill(.accent).frame(48, 48)
+RoundedRectangle(12).stroke(.outline, 2)       // centered on the edge
+RoundedRectangle(12).stroke_border(.white, 2)  // inside the edge
+RoundedRectangle(12).fill(.surface).stroke_border(.outline, 1)
+```
+
 A shape with neither a fill nor a stroke uses the environment's foreground color. Fills and stroke
 colors can be reactive, and animate when they change.
 
@@ -37,6 +53,10 @@ colors can be reactive, and animate when they change.
 
 ```cpp
 Circle().stroke(ThemeColor::accent, {.width = 3, .cap = LineCap::round, .dash = {6, 4}});
+```
+
+```rust
+Circle().stroke_style(.accent, StrokeStyle::default().width(3.0).cap(LineCap::Round).dash(vec![6.0, 4.0]))
 ```
 
 ### Shapes as backgrounds and clips
@@ -48,6 +68,14 @@ Text("Tag").padding(6).background(ThemeColor::surface_raised, Capsule());
 Image({.file = "avatar.jpg"}).resizable().frame(48, 48).clip_shape(Circle());
 card.corner_radius(16);                                  // clip_shape(RoundedRectangle(16))
 Button(Text("Tap"), tap).content_shape(Rectangle());     // hit-test the whole frame
+```
+
+```rust
+# let tap = || {};
+Text("Tag").padding(6).background_in(.surface_raised, Capsule())
+Image(ImageSource::file("/path/to/avatar.jpg")).resizable().frame(48, 48).clip_shape(Circle())
+VStack { Text("Card") }.corner_radius(16)              // clip_shape(RoundedRectangle(16))
+Button(Text("Tap"), tap).content_shape(Rectangle())    // the whole frame takes clicks
 ```
 
 ## Gradients
@@ -66,6 +94,28 @@ Rectangle().fill(LinearGradient(std::vector<GradientStop>{{Color::black, 0}, {Co
 Circle().fill(RadialGradient({Color::white, Color::hex(0x7AA2F7)}, UnitPoint::center, 0, 60));
 ```
 
+```rust
+Circle().fill(LinearGradient::colors([Color::hex(0xF7768E), Color::hex(0xFF9E64)]))
+
+Rectangle().fill(
+    LinearGradient::colors([Color::hex(0x7AA2F7), Color::hex(0xBB9AF7)])
+        .from_to(UnitPoint::new(0.0, 0.0), UnitPoint::new(1.0, 1.0)),
+)
+
+Rectangle().fill(LinearGradient::new(
+    vec![GradientStop::new(Color::BLACK, 0.0), GradientStop::new(Color::CLEAR, 0.6)],
+    UnitPoint::new(0.5, 0.0),
+    UnitPoint::new(0.5, 1.0),
+))
+
+Circle().fill(RadialGradient::new(
+    vec![GradientStop::new(Color::WHITE, 0.0), GradientStop::new(Color::hex(0x7AA2F7), 1.0)],
+    UnitPoint::new(0.5, 0.5),
+    0.0,
+    60.0,
+))
+```
+
 Linear gradients run between two `UnitPoint`s of the shape's bounds: (0, 0) is the top-leading
 corner and (1, 1) the bottom-trailing one. Radial gradients have a center and two radii in
 points. Colors interpolate in sRGB with premultiplied alpha, as in CSS.
@@ -82,10 +132,20 @@ const Path heart = Path::svg("M12 21s-7.5-4.6-9.6-9.3C.9 8.4 3.2 4.5 6.9 4.5c2.1
                              "1.5-1.8 3-3 5.1-3 3.7 0 6 3.9 4.5 7.2C19.5 16.4 12 21 12 21z");
 ```
 
+```rust
+# fn f() -> Result<(), Error> {
+let mut triangle = Path::new();
+triangle.move_to(Point::new(0.0, 20.0)).line_to(Point::new(20.0, 20.0)).line_to(Point::new(10.0, 0.0)).close();
+
+let heart = Path::svg("M12 21s-7.5-4.6-9.6-9.3C.9 8.4 3.2 4.5 6.9 4.5c2.1 0 3.6 1.2 5.1 3 \
+                       1.5-1.8 3-3 5.1-3 3.7 0 6 3.9 4.5 7.2C19.5 16.4 12 21 12 21z")?;
+# Ok(()) }
+```
+
 The builders are `move_to`, `line_to`, `quad_to`, `cubic_to`, `arc_to` (SVG-style) and `close`,
 plus `add_rect`, `add_rounded_rect`, `add_ellipse`, `add_circle` and `add_path`. `Path::svg`
-accepts every SVG path command, absolute and relative, and throws `elg::UsageError` with the
-position of anything it can't read.
+accepts every SVG path command, absolute and relative, and reports the position of anything it can't
+read as an error.
 
 Show a path with `PathShape`. With a view box, the path is scaled to fit the frame and centered,
 as in SVG:
@@ -93,6 +153,14 @@ as in SVG:
 ```cpp
 PathShape(heart, {.view_box = Rect{0, 0, 24, 24}}).fill(Color::hex(0xBB9AF7)).frame(48, 48);
 PathShape(ring, {.fill_rule = FillRule::even_odd}).fill(ThemeColor::accent);
+```
+
+```rust
+# let (heart, ring) = (Path::new(), Path::new());
+PathShape(heart, PathShapeOptions { view_box: Some(Rect::new(0.0, 0.0, 24.0, 24.0)), ..Default::default() })
+    .fill(Color::hex(0xBB9AF7))
+    .frame(48, 48)
+PathShape(ring, PathShapeOptions { fill_rule: FillRule::EvenOdd, ..Default::default() }).fill(.accent)
 ```
 
 Paths are filled with a stencil-and-cover technique on the GPU, with multisampled edges, and
@@ -106,6 +174,21 @@ cached while they don't change.
 CustomShape([](Rect r) {
     return Path().move_to({0, r.height}).line_to({r.width / 2, 0}).line_to({r.width, r.height}).close();
 }).fill(ThemeColor::accent);
+```
+
+```rust
+CustomShape(
+    |r: Rect| {
+        let mut path = Path::new();
+        path.move_to(Point::new(0.0, r.height))
+            .line_to(Point::new(r.width / 2.0, 0.0))
+            .line_to(Point::new(r.width, r.height))
+            .close();
+        path
+    },
+    FillRule::NonZero,
+)
+.fill(.accent)
 ```
 
 ## Canvas
@@ -123,6 +206,20 @@ Canvas([](GraphicsContext& g) {
 }).frame({.height = 120});
 ```
 
+```rust
+# let graph = Path::new();
+Canvas(move |g| {
+    let size = g.size();
+    g.fill_rect(Rect::new(0.0, 0.0, size.width, size.height), Color::hex(0x1A1B26), 12.0);
+    g.stroke_rect(Rect::new(8.0, 8.0, 40.0, 40.0), Color::WHITE, 2.0, 0.0);
+    let mut dot = Path::new();
+    dot.add_circle(Point::new(size.width / 2.0, size.height / 2.0), 20.0);
+    g.fill_path(&dot, Color::hex(0xF7768E), FillRule::NonZero);
+    g.stroke_path(&graph, Color::hex(0x7AA2F7), &StrokeStyle::default().width(2.0).join(LineJoin::Round));
+})
+.frame(height: 120)
+```
+
 A canvas takes the size it's offered. Coordinates are points from its top-left corner.
 
 ## Animated drawing
@@ -135,6 +232,14 @@ window goes back to idle once no canvas asks.
 Canvas([](GraphicsContext& g) {
     const float x = 40 + 30 * std::sin(g.time() * 3);
     g.fill_rect({x, 10, 12, 12}, Color::white, 6);
+    g.request_frame();
+})
+```
+
+```rust
+Canvas(|g| {
+    let x = 40.0 + 30.0 * (g.time() * 3.0).sin() as f32;
+    g.fill_rect(Rect::new(x, 10.0, 12.0, 12.0), Color::WHITE, 6.0);
     g.request_frame();
 })
 ```

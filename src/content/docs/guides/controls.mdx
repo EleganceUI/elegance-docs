@@ -1,0 +1,418 @@
+---
+title: Controls
+description: "Buttons, toggles, check boxes, text fields, sliders, number inputs, pickers, and progress indicators."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+Controls handle everything people expect of them on their own: hover and press feedback, keyboard
+focus, activating with the keyboard, and screen reader support. How they look comes from
+[styles](../styles/) and the environment's tint color.
+
+Controls that change a value, like a toggle or a text field, are given a
+[binding](../state/#binding) to it. Usually you just pass a state.
+
+## Buttons
+
+```cpp
+Button("Save", save);
+Button(Label("Share", {.system_name = "share-network"}), share);
+Button(Image("trash"), remove).accessibility_label("Delete");
+Button(Text([=] { return playing() ? "Pause" : "Play"; }), toggle); // a label that changes
+```
+
+```rust
+# let (save, share, remove, toggle) = (|| {}, || {}, || {}, || {});
+# let playing = State::new(false);
+Button("Save", save)
+Button(Label("Share", "share-network"), share)
+Button(Image("trash"), remove).accessibility_label("Delete")
+Button(Text(move || if playing.get() { "Pause" } else { "Play" }), toggle) // a label that changes
+```
+
+A button's label can be any view. The button runs its action when it's clicked, or when it has
+focus and someone presses Return or Space.
+
+There are three built-in looks. The default fills the button with the tint color; the others are
+an outlined button and a plain one, for buttons that shouldn't stand out:
+
+```cpp
+Button("Cancel", cancel).button_style(BorderedButtonStyle{});
+Button("Learn more", learn).button_style(PlainButtonStyle{});
+
+HStack(Button("A", a), Button("B", b)).button_style(BorderedButtonStyle{}); // every button inside
+```
+
+```rust
+# let (cancel, learn, a, b) = (|| {}, || {}, || {}, || {});
+Button("Cancel", cancel).button_style(BorderedButtonStyle)
+Button("Learn more", learn).button_style(PlainButtonStyle)
+
+HStack {
+    Button("A", a)
+    Button("B", b)
+}
+.button_style(BorderedButtonStyle) // every button inside
+```
+
+Change a button's color with `.tint`, and turn it off with `.disabled`. Both also work on a
+container, for everything inside it:
+
+```cpp
+Button("Delete", remove).tint(Color::hex(0xFF453A));
+Button("Submit", submit).disabled([=] { return !form_valid(); });
+```
+
+```rust
+# let (remove, submit) = (|| {}, || {});
+# let form_valid = State::new(false);
+Button("Delete", remove).tint(Color::hex(0xFF453A))
+Button("Submit", submit).disabled(move || !form_valid.get())
+```
+
+## Toggles and check boxes
+
+A `Toggle` is a switch that turns something on, like Wi-Fi. A `Checkbox` chooses something, like
+an option in a form or an item in a list. Clicking either, or pressing Space or Return, flips it.
+
+```cpp
+const State<bool> wifi(true);
+
+Toggle("Wi-Fi", wifi);
+Toggle(Label("Notifications", {.system_name = "bell"}), notifications);
+Checkbox("Remember me", remember);
+```
+
+```rust
+# let (notifications, remember) = (State::new(true), State::new(false));
+let wifi = State::new(true);
+
+elg! {
+    VStack {
+        Toggle("Wi-Fi", wifi)
+        Toggle(Label("Notifications", "bell"), notifications)
+        Checkbox("Remember me", remember)
+    }
+}
+```
+
+Both are only as wide as their label and switch. For a settings row with the label at one end and
+the switch at the other, make the switch fill the width:
+
+```cpp
+Toggle("Wi-Fi", wifi).toggle_style(SwitchToggleStyle{{.fills_width = true}});
+```
+
+```rust
+# let wifi = State::new(true);
+Toggle("Wi-Fi", wifi).toggle_style(SwitchToggleStyle::new().fills_width(true))
+```
+
+When you lay the label out yourself, leave it out, and the control is just the switch or the box.
+Give it an accessibility label so screen readers can still name it:
+
+```cpp
+HStack(VStack(Text("Wi-Fi"), Text("Connected").foreground_style(ThemeColor::secondary)),
+       Spacer(),
+       Toggle(wifi).accessibility_label("Wi-Fi"));
+```
+
+```rust
+# let wifi = State::new(true);
+HStack {
+    VStack {
+        Text("Wi-Fi")
+        Text("Connected").foreground_style(.secondary)
+    }
+    Spacer()
+    { Toggle::unlabeled(wifi) }.accessibility_label("Wi-Fi")
+}
+```
+
+A check box can also be *mixed*, when some of what it stands for is checked, like "Select all"
+with some files selected. It shows a dash, and checking it checks it fully:
+
+```cpp
+const Binding<bool> all([=] { return std::ranges::all_of(files(), &File::selected); },
+                        [=](bool on) { select_all(on); });
+
+Checkbox("Select all", all, {.mixed = [=] { return some_selected() && !all(); }});
+```
+
+```rust
+# #[derive(Clone, PartialEq)] struct File { selected: bool }
+# let files = State::new(Vec::<File>::new());
+let all = Binding::new(
+    move || files.read().iter().all(|f| f.selected),
+    move |on| files.write().iter_mut().for_each(|f| f.selected = on),
+);
+let some = move || files.read().iter().any(|f| f.selected);
+
+elg! { Checkbox("Select all", all, mixed: move || some() && !all.get()) }
+```
+
+The switch and the box have options for their colors, sizes, and animation:
+
+```cpp
+Toggle("Wi-Fi", wifi).toggle_style(SwitchToggleStyle{{.on = ThemeColor::success, .width = 48, .height = 28}});
+Checkbox("Agree", agreed).checkbox_style(BoxCheckboxStyle{{.size = 16, .corner_radius = 3}});
+```
+
+```rust
+# let (wifi, agreed) = (State::new(true), State::new(false));
+Toggle("Wi-Fi", wifi).toggle_style(SwitchToggleStyle::new().on(ThemeColor::Success).size(48, 28))
+Checkbox("Agree", agreed).checkbox_style(BoxCheckboxStyle::new().size(16).corner_radius(3))
+```
+
+## Text fields
+
+A `TextField` edits one line of text:
+
+```cpp
+const State<std::string> name;
+
+TextField("Name", name);
+TextField("Search", query, {.on_submit = [=] { search(query()); }});
+TextField("Password", password, {.secure = true});
+```
+
+```rust
+# let (query, password) = (State::new(String::new()), State::new(String::new()));
+# fn search(q: String) {}
+let name = State::new(String::new());
+
+elg! {
+    VStack {
+        TextField("Name", name)
+        TextField("Search", query, on_submit: move || search(query.get()))
+        TextField("Password", password, secure: true)
+    }
+}
+```
+
+Text fields do what people expect: typing, input methods for Chinese, Japanese, and Korean,
+selecting with the mouse or Shift and the arrow keys, double-clicking a word, triple-clicking
+everything, moving by words, copy and paste, and undo.
+
+A **secure** field shows a dot for each character, and its text can't be copied out. Like the
+system's own password fields, it switches input methods off while you type in it, and on a Mac it
+also stops other apps from reading the keystrokes. `secure` can follow a state, so a button can
+show the password:
+
+```cpp
+const State<bool> reveal(false);
+
+HStack(TextField("Password", password, {.secure = [=] { return !reveal(); }}),
+       Button(Image("eye"), [=] { reveal = !reveal(); }));
+```
+
+```rust
+# let password = State::new(String::new());
+let reveal = State::new(false);
+
+elg! {
+    HStack {
+        TextField("Password", password, secure: move || !reveal.get())
+        Button(Image("eye"), move || reveal.toggle())
+    }
+}
+```
+
+With a `line_limit` above 1, a text field wraps and grows up to that many lines before it scrolls,
+like a chat box. Return submits, and Shift-Return starts a new line.
+
+For longer text, like notes or a message, use a `TextArea`. In a text area, Return starts a new
+line, and Ctrl-Return (Cmd-Return on a Mac) submits. It's as tall as you make it and scrolls
+inside; put it in a `ScrollView` and it grows with its text instead:
+
+```cpp
+TextArea("Notes", note).frame({.height = 200});
+ScrollView(TextArea("Start writing...", body));
+```
+
+```rust
+# let (note, body) = (State::new(String::new()), State::new(String::new()));
+TextArea("Notes", note).frame(height: 200)
+ScrollView {
+    TextArea("Start writing...", body)
+}
+```
+
+To put the cursor in a field from code, bind `.focused` to a state:
+
+```cpp
+const State<bool> editing(false);
+
+TextField("Title", title).focused(editing);
+Button("Rename", [=] { editing = true; });
+```
+
+```rust
+# let title = State::new(String::new());
+let editing = State::new(false);
+
+elg! {
+    VStack {
+        TextField("Title", title).focused(editing)
+        Button("Rename", move || editing.set(true))
+    }
+}
+```
+
+## Sliders
+
+A slider picks a number in a range, by dragging or with the arrow keys, Page Up and Page Down, and
+Home and End:
+
+```cpp
+const State<float> volume(0.5f);
+
+Slider(volume);
+Slider(size, {.min = 8, .max = 72, .step = 1});
+Slider(brightness, {.on_editing_changed = [=](bool dragging) { if (!dragging) save(); }});
+```
+
+```rust
+# let (size, brightness) = (State::new(12.0_f32), State::new(1.0_f32));
+# let save = || {};
+let volume = State::new(0.5_f32);
+
+elg! {
+    VStack {
+        Slider(volume)
+        Slider(size, min: 8, max: 72, step: 1)
+        Slider(brightness, on_editing_changed: move |dragging| if !dragging { save() })
+    }
+}
+```
+
+A slider is as wide as the space it's given. You can change its colors and sizes, or draw it
+yourself with [a style of your own](../styles/#slider-styles):
+
+```cpp
+Slider(volume).slider_style(KnobSliderStyle{{.track_thickness = 2, .knob_size = 14}});
+```
+
+```rust
+# let volume = State::new(0.5_f32);
+Slider(volume).slider_style(KnobSliderStyle::new().track_thickness(2).knob_size(14))
+```
+
+## Number inputs
+
+A `NumberInput` edits a whole or decimal number. You can type it, step it with its arrows or the
+Up and Down keys (Shift for ten steps), or drag sideways across it to scrub:
+
+```cpp
+const State<int> guests(2);
+
+HStack(Text("Guests"), NumberInput(guests, {.min = 1, .max = 12}));
+NumberInput(opacity, {.min = 0, .max = 1, .step = 0.05, .decimals = 2});
+NumberInput(width, {.format = [](double v) { return std::format("{:g} px", v); },
+                    .parse = parse_pixels});
+```
+
+```rust
+# let opacity = State::new(1.0_f64);
+let guests = State::new(2);
+
+elg! {
+    VStack {
+        HStack {
+            Text("Guests")
+            NumberInput(guests, min: 1, max: 12)
+        }
+        NumberInput(opacity, min: 0, max: 1, step: 0.05, decimals: 2)
+    }
+}
+```
+
+What you type applies when you press Return or move on, so a half-typed `1.` isn't changed under
+your cursor, and text that isn't a number goes back to the value. The value always stays within
+its range. You can turn scrubbing and the arrows off.
+
+## Pickers
+
+A picker chooses one of several options. Each option is a value and a label:
+
+```cpp
+enum class Size { small, medium, large };
+const State<Size> size(Size::medium);
+
+Picker(size, {{Size::small, "S"}, {Size::medium, "M"}, {Size::large, "L"}});
+Picker(size, {{Size::small, "Small"}, {Size::medium, "Medium"}, {Size::large, "Large"}})
+    .picker_style(MenuPickerStyle{});
+```
+
+```rust
+#[derive(Clone, Copy, PartialEq)]
+enum Size { Small, Medium, Large }
+
+let size = State::new(Size::Medium);
+
+elg! {
+    VStack {
+        Picker(size, [(Size::Small, "S"), (Size::Medium, "M"), (Size::Large, "L")])
+        Picker(size, [(Size::Small, "Small"), (Size::Medium, "Medium"), (Size::Large, "Large")])
+            .picker_style(MenuPickerStyle)
+    }
+}
+```
+
+By default a picker shows all its options side by side, as segments. With the menu style, it shows
+the chosen option on a button that opens a menu of the others.
+
+## Progress
+
+`Progress` shows how far along something is, or, without a fraction, that something is happening:
+
+```cpp
+Progress(0.4f);                                    // a bar, 40% full
+Progress([=] { return downloaded() / total(); });
+Progress();                                        // working on it
+```
+
+```rust
+# let (downloaded, total) = (State::new(0.0_f32), State::new(1.0_f32));
+Progress(0.4)                                                // a bar, 40% full
+Progress(move || Some(downloaded.get() / total.get()))
+Progress()                                                   // working on it
+```
+
+The fraction is optional, so one indicator can show activity while the size isn't known yet, and
+fill up once it is:
+
+```cpp
+Progress([=]() -> std::optional<float> {
+    if (total() == 0) {
+        return std::nullopt; // not known yet
+    }
+    return float(downloaded()) / total();
+});
+```
+
+```rust
+# let (downloaded, total) = (State::new(0_u64), State::new(0_u64));
+Progress(move || (total.get() > 0).then(|| downloaded.get() as f32 / total.get() as f32))
+```
+
+It's a bar by default, or a ring with the circular style. Both take colors and a thickness:
+
+```cpp
+Progress().progress_style(CircularProgressStyle{{.size = 14, .line_width = 2}});
+Progress(upload).progress_style(LinearProgressStyle{{.fill = ThemeColor::success, .thickness = 3}});
+```
+
+```rust
+# let upload = State::new(Some(0.5_f32));
+Progress().progress_style(CircularProgressStyle::new().size(14).line_width(2))
+Progress(upload).progress_style(LinearProgressStyle::new().fill(ThemeColor::Success).thickness(3))
+```
+
+A progress indicator has no label of its own. Put a `Text` beside it, or give it an
+`.accessibility_label`. An indicator without a fraction keeps animating while it's on screen, so
+remove it when the work is done.
+
+## Menus
+
+A `MenuButton` opens a menu. See [Menus and popups](../menus/).

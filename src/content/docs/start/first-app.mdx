@@ -216,19 +216,21 @@ picks between two views, and switches when its condition changes:
 ```cpp
 If([=] { return todos().empty(); },
    Text("Nothing left to do."),
-   ScrollView(LazyVStack(...)))
+   ScrollView(LazyVStack(ForEach(todos, &Todo::id, [](const Todo& todo) { return Text(todo.title); }))))
 ```
 
 ```rust
 # #[derive(Clone, PartialEq)] struct Todo { id: i64, title: String, done: bool }
 # let todos = State::new(Vec::<Todo>::new());
-# let _ = elg! {
 if todos.read().is_empty() {
     Text("Nothing left to do.")
 } else {
-    ScrollView { LazyVStack { /* the rows */ } }
+    ScrollView {
+        LazyVStack {
+            ForEach(todos, id: |t| t.id) { todo in Text(todo.title.clone()) }
+        }
+    }
 }
-# };
 ```
 
 ## 6. Add items, with animation

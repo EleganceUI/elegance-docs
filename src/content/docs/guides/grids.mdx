@@ -1,0 +1,144 @@
+---
+title: Grids
+description: "Lay views out in columns and rows: grids that fill as many columns as fit, and tables whose columns line up."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+Elegance has two kinds of grid, for two different jobs:
+
+- **`VGrid` and `HGrid`** pour their children into columns (or rows), filling one line before
+  starting the next. Use them for a photo wall, a library of cards, or a palette of swatches.
+- **`Grid`** is a table. Its children are rows, and each column is as wide as its widest cell. Use
+  it for forms, settings, and data that should line up.
+
+## Grids that flow
+
+A `VGrid` places its children in columns, left to right, then starts a new row. You describe the
+columns, and the grid does the rest:
+
+```cpp
+// As many columns of at least 150 points as fit; together they fill the width.
+VGrid({.columns = {GridItem::adaptive(150)}, .spacing = 12},
+      ForEach(games, &Game::id, GameCard));
+
+// An icon column, then a column that takes the rest.
+VGrid({.columns = {GridItem::fixed(32), GridItem::flexible()}},
+      Image("star"), Text("Favorites"),
+      Image("clock"), Text("Recent"));
+```
+
+```rust
+# #[derive(Clone, PartialEq)] struct Game { id: i64, name: String }
+# let games = State::new(Vec::<Game>::new());
+// As many columns of at least 150 points as fit; together they fill the width.
+VGrid([GridItem::adaptive(150)], spacing: 12) {
+    ForEach(games, id: |g| g.id) { game in Text(game.name.clone()) }
+}
+
+// An icon column, then a column that takes the rest.
+VGrid([GridItem::fixed(32), GridItem::flexible()]) {
+    Image("star")
+    Text("Favorites")
+    Image("clock")
+    Text("Recent")
+}
+```
+
+There are three kinds of column:
+
+| Column | How wide |
+|---|---|
+| `GridItem::fixed(size)` | exactly `size` points |
+| `GridItem::flexible()` | an equal share of what the fixed columns leave, optionally between a minimum and a maximum |
+| `GridItem::adaptive(minimum)` | as many columns as fit, each at least `minimum` wide |
+
+An adaptive column is what makes a grid respond to the window: widen the window and more columns
+appear, and the columns always fill the width exactly. With less room than one column's minimum,
+you get a single narrower column instead of content spilling out.
+
+Each column can have its own spacing after it, and its own alignment for the views in its cells:
+
+```cpp
+VGrid({.columns = {GridItem::fixed(120).with_alignment(Alignment::trailing).with_spacing(16),
+                   GridItem::flexible().with_alignment(Alignment::leading)}},
+      Text("Name"), TextField("", name),
+      Text("Email"), TextField("", email));
+```
+
+```rust
+# let (name, email) = (State::new(String::new()), State::new(String::new()));
+VGrid([GridItem::fixed(120).alignment(.trailing).spacing(16), GridItem::flexible().alignment(.leading)]) {
+    Text("Name")
+    TextField("", name)
+    Text("Email")
+    TextField("", email)
+}
+```
+
+The grid's own `spacing` goes between rows, and between columns that don't set their own. Each row
+is as tall as its tallest cell, and every cell offers its view the cell's whole size, so a flexible
+view, like a color or a frame with an unlimited width, fills its cell.
+
+`HGrid` is the same on its side: you describe rows, and children fill a column before starting the
+next. It usually lives in a horizontal `ScrollView`.
+
+## Tables
+
+A `Grid` holds `GridRow`s, and lines their cells up in columns. Each column is as wide as its
+widest cell:
+
+```cpp
+Grid({.alignment = Alignment::leading, .horizontal_spacing = 24},
+     GridRow(Text("Game").font(Font::headline), Text("Mods").font(Font::headline)),
+     Separator(),
+     ForEach(games, &Game::id, [](const Game& game) {
+         return GridRow(Text(game.name), Text(std::format("{}", game.mods)));
+     }),
+     GridRow(Text("Mods include disabled ones.").grid_cell_columns(2)));
+```
+
+```rust
+# #[derive(Clone, PartialEq)] struct Game { id: i64, name: String, mods: i32 }
+# let games = State::new(Vec::<Game>::new());
+Grid(alignment: .leading, horizontal_spacing: 24) {
+    GridRow {
+        Text("Game").font(.headline)
+        Text("Mods").font(.headline)
+    }
+    Separator()
+    ForEach(games, id: |g| g.id) { game in
+        GridRow {
+            Text(game.name.clone())
+            Text(format!("{}", game.mods))
+        }
+    }
+    GridRow {
+        Text("Mods include disabled ones.").grid_cell_columns(2)
+    }
+}
+```
+
+- Anything that isn't a `GridRow`, like the `Separator` above or a heading, gets a row to itself,
+  as wide as the table.
+- To repeat rows, use a `ForEach` whose items are `GridRow`s, as above. (A `ForEach` *inside* a
+  row is just one cell.)
+- Offered more width than it needs, the table gives the extra to columns with flexible cells.
+  Offered less, every column narrows in proportion and text wraps.
+
+Three modifiers adjust cells:
+
+| Modifier | What it does |
+|---|---|
+| `.grid_cell_columns(n)` | the cell spans `n` columns |
+| `.grid_column_alignment(alignment)` | aligns every cell in this cell's column; put it on one cell, usually the header |
+| `.grid_cell_alignment(alignment)` | where this one view sits in its cell |
+
+A row can set its own vertical alignment, and the table its default alignment and the spacing
+between columns and rows.
+
+## In your own layouts
+
+<Lang only="cpp">`VGridLayout`, `HGridLayout`, and `GridLayout` are the layouts behind these views, and `resolve_grid_tracks` is their column sizing.</Lang>
+<Lang only="rust">`VGridLayout`, `HGridLayout`, and `GridLayout` are the layouts behind these views.</Lang>
+You can use them inside your own [custom layouts](../custom-layouts/).

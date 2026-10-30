@@ -16,7 +16,8 @@
 //   alternatives, is wrapped in `elg! { VStack { ... } }`; set-up lines go before it.
 // - Lines starting with "# " are set-up the sample needs but readers don't (variables it uses),
 //   as in rustdoc; the site leaves them out (src/plugins/remark-language-pairs.mjs).
-// - ```rust ignore blocks, and fragments that start with a modifier (`.padding(8)`), are skipped.
+// - ```rust ignore blocks are skipped, and so are fragments that start with a modifier
+//   (`.padding(8)`), unless hidden lines put them on a view.
 //
 // Errors are reported against the page and line they came from.
 
@@ -56,10 +57,14 @@ for (const page of pages) {
 // What kind of sample: a program, DSL to wrap in elg!, code for a function body, or a fragment.
 function shape(body) {
 	const code = body.filter((l) => l.trim() && !/^\s*\/\//.test(l) && !/^\s*#( |$)/.test(l));
-	if (!code.length || code[0].trim().startsWith('.')) return 'skip';
+	const hidden = body.some((l) => /^\s*#( |$)/.test(l));
+	// A modifier on its own (`.padding(8)`) compiles only with hidden lines around it.
+	if (!code.length || (code[0].trim().startsWith('.') && !hidden)) return 'skip';
+	if (code[0].trim().startsWith('.')) return 'body';
 	const text = code.join('\n');
 	if (/\bfn main\s*\(/.test(text)) return 'program';
-	if (!/elg!/.test(text) && /^[A-Z]\w*\s*[({]/.test(code[0].trim()) && !/^[A-Z]\w*::/.test(code[0].trim())) return 'dsl';
+	const first = code[0].trim();
+	if (!/elg!/.test(text) && ((/^[A-Z]\w*\s*[({]/.test(first) && !/^[A-Z]\w*::/.test(first)) || /^(if|match)\b.*\{$/.test(first))) return 'dsl';
 	return 'body';
 }
 

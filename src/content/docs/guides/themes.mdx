@@ -1,32 +1,41 @@
 ---
 title: Colors and themes
-description: "Colors, semantic theme colors, light and dark mode, custom themes, and gradients."
+description: "Use colors that suit light and dark mode, follow the system's appearance, and give your app its own theme."
 ---
 
 import Example from '../../../components/Example.astro';
+import Lang from '../../../components/Lang.astro';
 
 ## Colors
 
-`Color` is an sRGB color with straight alpha:
+A `Color` is an RGB color with an opacity:
 
 ```cpp
 Color::hex(0x7AA2F7)
-Color::hex(0x7AA2F7, 0.5f)          // with alpha
+Color::hex(0x7AA2F7, 0.5f)                   // half transparent
 Color::rgb(122, 162, 247)
-Color{0.48f, 0.64f, 0.97f, 1.f}
 Color::black.opacity(0.3f)
-Color::hex(0x7AA2F7).mix(Color::white, 0.2f) // 20% toward white
+Color::hex(0x7AA2F7).mix(Color::white, 0.2f) // 20% of the way to white
 Color::white, Color::black, Color::clear
 ```
 
-Gradients fill shapes and backgrounds like colors do; see
+```rust
+let blue = Color::hex(0x7AA2F7);
+let faint = Color::hex_alpha(0x7AA2F7, 0.5);        // half transparent
+let same = Color::rgb(122, 162, 247);
+let shadow = Color::BLACK.opacity(0.3);
+let lighter = Color::hex(0x7AA2F7).mix(Color::WHITE, 0.2); // 20% of the way to white
+let (white, black, clear) = (Color::WHITE, Color::BLACK, Color::CLEAR);
+```
+
+Gradients fill shapes and backgrounds just like colors; see
 [Shapes and drawing](../drawing/#gradients).
 
 ## Theme colors
 
-Rather than fixed colors, most UI should use **semantic colors**. A `ThemeColor` is resolved
-against the theme and color scheme where it's used, so the same code looks right in light and
-dark mode:
+For most of your interface, don't pick fixed colors. Use **theme colors** instead: names for what a
+color is *for*, like "secondary text" or "a card's background". Elegance looks each one up in the
+current theme, in light or dark mode, so the same code looks right in both:
 
 ```cpp
 Text("Details").foreground_style(ThemeColor::secondary);
@@ -34,40 +43,65 @@ RoundedRectangle(12).fill(ThemeColor::surface);
 content.background(ThemeColor::background);
 ```
 
-| Token | Use |
-| --- | --- |
-| `background` | The window background |
-| `surface` | Cards and panels |
-| `surface_raised` | Controls and panels on surfaces |
-| `outline` | Borders and separators |
-| `primary` | Main text and icons (the default foreground) |
-| `secondary` | Supporting text |
-| `tertiary` | Hints and disabled text |
-| `accent` | The tint: prominent buttons, selection |
-| `on_accent` | Text and icons on the accent |
-| `danger`, `success`, `warning` | Status colors |
+```rust
+Text("Details").foreground_style(.secondary)
+RoundedRectangle(12).fill(.surface)
+VStack { Text("Content") }.background(.background)
+```
 
-To mix a theme color with something else, take the environment in the closure:
+| Theme color | What it's for |
+| --- | --- |
+| `background` | the window's background |
+| `surface` | cards and panels |
+| `surface_raised` | controls and panels on top of a surface |
+| `outline` | borders and separators |
+| `primary` | main text and icons (the default text color) |
+| `secondary` | supporting text |
+| `tertiary` | hints, and text that's turned off |
+| `accent` | the tint: prominent buttons, selection |
+| `on_accent` | text and icons on top of the accent |
+| `danger`, `success`, `warning` | showing status |
+
+To work with a theme color, like making it a little transparent or picking between two, ask the
+environment for its actual value:
 
 ```cpp
 .background([](const EnvironmentValues& env) { return env.color(ThemeColor::surface).opacity(0.9f); })
-.fill([=](const EnvironmentValues& env) { return on() ? env.color(ThemeColor::accent) : env.color(ThemeColor::outline); })
+.fill([=](const EnvironmentValues& env) { return env.color(on() ? ThemeColor::accent : ThemeColor::outline); })
+```
+
+```rust
+# let on = State::new(false);
+# let _ = elg! { Text("A")
+.background(Prop::from_env(|env| ShapeStyle::Color(env.color(ThemeColor::Surface).opacity(0.9))))
+# };
+# let _ = elg! { Circle()
+.fill(Prop::from_env(move |env| {
+    ShapeStyle::Color(env.color(if on.get() { ThemeColor::Accent } else { ThemeColor::Outline }))
+}))
+# };
 ```
 
 ## Light and dark mode
 
-Windows follow the system's light or dark setting by default, and switch when it changes. Force a
-scheme for any part of the UI with `color_scheme`:
+Windows follow the system's light or dark appearance, and switch along with it. To make part of
+your interface always light or always dark, or let people choose, use `color_scheme`:
 
 ```cpp
 Sidebar().color_scheme(ColorScheme::dark);
 Root().color_scheme([=] { return dark_mode() ? ColorScheme::dark : ColorScheme::light; });
 ```
 
-## Custom themes
+```rust
+# let dark_mode = State::new(true);
+VStack { Text("Sidebar") }.color_scheme(.dark)
+VStack { Text("Root") }.color_scheme(move || if dark_mode.get() { ColorScheme::Dark } else { ColorScheme::Light })
+```
 
-A `Theme` holds a full set of colors for light and dark. Start from the standard theme and change
-what you need:
+## Your own theme
+
+A `Theme` is a complete set of theme colors, for light and dark mode. Start from the standard one
+and change what you need:
 
 ```cpp
 Theme brand_theme() {
@@ -81,17 +115,55 @@ Theme brand_theme() {
 Root().theme(brand_theme());
 ```
 
-Themes, like the other environment values, apply to everything inside the view they're set on, so
-different parts of a window can have different themes.
+```rust
+fn brand_theme() -> Theme {
+    let mut theme = Theme::standard();
+    theme.light.accent = Color::hex(0x7C3AED);
+    theme.dark.accent = Color::hex(0xA78BFA);
+    theme.dark.background = Color::hex(0x17141F);
+    theme
+}
 
-## Tint
+let _ = elg! { VStack { Text("Root") }.theme(brand_theme()) };
+```
 
-The tint is the accent color of controls. It defaults to the theme's `accent`:
+A theme applies to everything inside the view you set it on, so different parts of a window can
+have different themes.
+
+## The accent color
+
+The *tint* is the accent color of controls: filled buttons, switches, selected rows. It's the
+theme's `accent` unless you set one:
 
 ```cpp
 Button("Delete", remove).tint(Color::hex(0xFF453A));
 Form().tint(ThemeColor::success);
 ```
+
+```rust
+# let remove = || {};
+Button("Delete", remove).tint(Color::hex(0xFF453A))
+VStack { Text("Form") }.tint(.success)
+```
+
+<Lang only="cpp">
+
+People pick an accent color in their system settings. `system_accent_color()` returns it (or
+nothing, where the system doesn't have one), and updates when they change it, so you can make your
+app follow it:
+
+```cpp
+Root().tint([] { return system_accent_color().value_or(Color::hex(0x0A84FF)); });
+```
+
+</Lang>
+
+<Lang only="rust">
+
+The C++ API can also follow the accent color people pick in their system settings
+(`system_accent_color()`); the Rust bindings don't have it yet.
+
+</Lang>
 
 ## Example
 

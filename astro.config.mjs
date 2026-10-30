@@ -5,6 +5,8 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { eleganceDir, examplesDir, rustDir } from './scripts/paths.mjs';
+import remarkLanguagePairs from './src/plugins/remark-language-pairs.mjs';
+import { languageScript } from './src/scripts/language.mjs';
 
 // Where the site is hosted. For GitHub Pages under a repository, set DOCS_SITE to
 // https://<user>.github.io and DOCS_BASE to /<repository> (the workflow in .github does).
@@ -14,6 +16,7 @@ const base = process.env.DOCS_BASE || '/';
 export default defineConfig({
 	site,
 	base,
+	markdown: { remarkPlugins: [remarkLanguagePairs] },
 	// The examples' sources come from the elegance-examples checkout (scripts/paths.mjs), reached
 	// as @examples.
 	vite: {
@@ -23,16 +26,24 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'Elegance',
-			description: 'Declarative, reactive UI for modern C++, drawn with Vulkan.',
+			description: 'Declarative, reactive desktop UI for C++ and Rust, drawn on the GPU.',
 			logo: { src: './src/assets/logo.svg', replacesTitle: false },
 			favicon: '/favicon.svg',
-			customCss: ['./src/styles/custom.css'],
+			customCss: [
+				'@fontsource-variable/inter',
+				'@fontsource-variable/jetbrains-mono',
+				'./src/styles/custom.css',
+				'./src/styles/reference.css',
+				'./src/styles/home.css',
+			],
+			components: { Sidebar: './src/components/Sidebar.astro', Hero: './src/components/Hero.astro' },
+			head: [{ tag: 'script', content: languageScript }],
 			lastUpdated: false,
 			tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
 			expressiveCode: {
 				themes: ['github-dark-default', 'github-light-default'],
 				styleOverrides: { borderRadius: '0.5rem' },
-				defaultProps: { wrap: true, preserveIndent: true },
+				defaultProps: { wrap: false },
 			},
 			sidebar: [
 				{
@@ -90,6 +101,7 @@ export default defineConfig({
 					label: 'API reference',
 					collapsed: true,
 					items: [
+						{ label: 'Overview', slug: 'reference' },
 						{ label: 'C++', collapsed: true, items: [{ autogenerate: { directory: 'reference/cpp' } }] },
 						{ label: 'Rust', collapsed: true, items: [{ autogenerate: { directory: 'reference/rust' } }] },
 					],

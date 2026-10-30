@@ -1,8 +1,10 @@
 ---
-// An example from the elegance-examples repository (<name>-cpp/main.cpp; see scripts/paths.mjs): its screenshot and full source, read at build time so the page always shows the code that
-// compiles.
+// An example from the elegance-examples repository (see scripts/paths.mjs): its screenshot and
+// full source, read at build time so the page always shows the code that compiles. When the
+// example also has a Rust version (<name>-rs/src/main.rs), both come under the language switch.
 //   <Example name="counter" />
 import { Code } from '@astrojs/starlight/components';
+import LanguageTabs from './LanguageTabs.astro';
 import { Image } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
 
@@ -15,6 +17,7 @@ interface Props {
 const { name, collapsed = false } = Astro.props;
 
 const sources = import.meta.glob<string>('@examples/*-cpp/main.cpp', { query: '?raw', import: 'default', eager: true });
+const rustSources = import.meta.glob<string>('@examples/*-rs/src/main.rs', { query: '?raw', import: 'default', eager: true });
 const shots = import.meta.glob<{ default: ImageMetadata }>('../assets/examples/*.png', { eager: true });
 
 // Keyed by where each file resolved to: find it by its folder.
@@ -32,6 +35,8 @@ if (!source) {
 const code = source.replace(/^(\/\/.*\r?\n)*\/\/.*License.*\r?\n(\/\/.*\r?\n)*\r?\n/, '');
 const shot = shots[`../assets/examples/${name}.png`]?.default;
 const path = `${name}-cpp/main.cpp`;
+const rust = Object.entries(rustSources).find(([key]) => key.match(/([^/]+)-rs\/src\/main\.rs$/)![1] === name)?.[1];
+const rustPath = `${name}-rs/src/main.rs`;
 ---
 
 <figure class="elg-example">
@@ -39,11 +44,22 @@ const path = `${name}-cpp/main.cpp`;
 	{
 		collapsed ? (
 			<details>
-				<summary>Source: <code>{path}</code></summary>
-				<Code code={code} lang="cpp" title={path} />
+				<summary>
+					Source: <code class={rust ? 'elg-only-cpp' : undefined}>{path}</code>
+					{rust && <code class="elg-only-rust">{rustPath}</code>}
+				</summary>
+				<div class={rust ? 'elg-lang-pair' : undefined}>
+					{rust && <LanguageTabs />}
+					<Code code={code} lang="cpp" title={path} />
+					{rust && <Code code={rust} lang="rust" title={rustPath} />}
+				</div>
 			</details>
 		) : (
-			<Code code={code} lang="cpp" title={path} />
+			<div class={rust ? 'elg-lang-pair' : undefined}>
+				{rust && <LanguageTabs />}
+				<Code code={code} lang="cpp" title={path} />
+				{rust && <Code code={rust} lang="rust" title={rustPath} />}
+			</div>
 		)
 	}
 </figure>

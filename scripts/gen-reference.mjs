@@ -46,6 +46,10 @@ const headers = [
 	['styles.h', 'Button, toggle, and text field styles.'],
 	['animation.h', 'Animations and transitions.'],
 	['events.h', 'Pointer, keyboard, and text input events; custom event handlers.'],
+	['gestures.h', 'Drags, long presses, and trackpad gestures.'],
+	['navigation.h', 'Split views, sidebars, and navigation stacks.'],
+	['timer.h', 'Timers: actions after a delay or at an interval.'],
+	['platform.h', 'The platform the app runs on.'],
 	['image.h', 'Images, icons, icon sets, and AsyncImage.'],
 	['audio.h', 'Sound effects and audio playback.'],
 	['video.h', 'Video playback.'],
@@ -237,6 +241,35 @@ function headingOf(code) {
 	return null;
 }
 
+// What a declaration is, for the label above its name.
+function kindOf(code) {
+	for (const raw of code) {
+		const line = raw.trim();
+		if (line === '' || line.startsWith('template') || line.startsWith('requires') || line.startsWith('[[')) continue;
+		if (line.startsWith('#define')) return 'macro';
+		if (/^enum\b/.test(line)) return 'enum';
+		if (/^class\b/.test(line)) return 'class';
+		if (/^struct\b/.test(line)) return 'struct';
+		if (/^concept\b/.test(line)) return 'concept';
+		if (/^using \w+ =/.test(line)) return 'type';
+		if (/^(inline )?(constexpr|const)\b/.test(line) && !line.includes('(')) return 'constant';
+		if (line.includes('(')) return 'function';
+		return 'declaration';
+	}
+	return 'declaration';
+}
+
+// The first sentence of a comment, for the topics table.
+function summaryOfComments(comments) {
+	const text = comments
+		.map((l) => l.replace(/^\s*\/\/\/?\s?/, ''))
+		.join(' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+	const sentence = text.match(/^(.+?[.!?])(\s|$)/);
+	return withoutDesignRefs(sentence ? sentence[1] : text).replace(/\|/g, '\\|');
+}
+
 // --- Markdown ---
 
 // Pointers into design.md (the design document in the repository) mean nothing on the web.
@@ -305,25 +338,31 @@ function render(header, description) {
 		'',
 	];
 	const seen = new Map();
+	// What's on the page, by section, for the topics table after the introduction.
+	const topics = [];
+	let section = 'Declarations';
+	const TOPICS = '<!-- topics -->';
 	items.forEach((block, index) => {
 		const firstCode = block.findIndex((l) => !isComment(l));
 		const comments = firstCode < 0 ? block : block.slice(0, firstCode);
 		const code = firstCode < 0 ? [] : withoutBodies(block.slice(firstCode));
 		if (!code.length) {
-			const section = comments.length === 1 && comments[0].match(/^\/\/ --- (.+) ---$/);
-			if (section) {
-				out.push(`## ${escapeProse(section[1])}`, '');
+			const sectionMatch = comments.length === 1 && comments[0].match(/^\/\/ --- (.+) ---$/);
+			if (sectionMatch) {
+				section = sectionMatch[1];
+				out.push(`## ${escapeProse(section)}`, '');
 			} else {
 				out.push(commentToMarkdown(comments), '');
-				if (index === 0) out.push('');
+				if (index === 0) out.push('', TOPICS, '');
 			}
 			return;
 		}
 		const heading = headingOf(code);
 		// Overloads and repeated names share one heading.
 		if (heading && !seen.has(heading)) {
-			out.push(`### ${escapeProse(heading)}`, '');
+			out.push(`### ${escapeProse(heading)}`, '', `<p class="elg-kind">${kindOf(code)}</p>`, '');
 			seen.set(heading, true);
+			topics.push({ heading, section, summary: comments.length ? summaryOfComments(comments) : '' });
 		}
 		if (comments.length) out.push(commentToMarkdown(comments), '');
 		const tidy = (line) => {
@@ -332,7 +371,28 @@ function render(header, description) {
 		};
 		out.push('```cpp', ...code.map(tidy), '```', '');
 	});
-	return out.join('\n').replace(/\n{3,}/g, '\n\n');
+	// The topics table: worth it once there's something to find.
+	let table = '';
+	if (topics.length > 3) {
+		const groups = new Map();
+		for (const topic of topics) {
+			if (!groups.has(topic.section)) groups.set(topic.section, []);
+			groups.get(topic.section).push(topic);
+		}
+		const lines = ['<div class="elg-topics">', ''];
+		for (const [name, list] of groups) {
+			lines.push(`**${escapeProse(name)}**`, '', '| | |', '| --- | --- |');
+			for (const topic of list) {
+				const anchor = topic.heading.toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, '').trim().replace(/\s/g, '-');
+				lines.push(`| [\`${topic.heading}\`](#${anchor}) | ${topic.summary} |`);
+			}
+			lines.push('');
+		}
+		lines.push('</div>');
+		table = lines.join('\n');
+	}
+	const page = out.join('\n');
+	return (page.includes(TOPICS) ? page.replace(TOPICS, table) : page.replace('```\n\n', '```\n\n' + table + '\n\n')).replace(/\n{3,}/g, '\n\n');
 }
 
 fs.rmSync(outDir, { recursive: true, force: true });
@@ -365,12 +425,41 @@ for (const [header, description] of headers) {
 
 // Every header should be listed above.
 const listed = new Set(headers.map(([h]) => h));
+// Headers apps don't include themselves: the export macros, the C interface the Rust crate binds
+// to, and a polyfill.
+const INTERNAL = new Set(['export.h', 'gpu_image.h', 'move_only_function.h']);
 for (const entry of fs.readdirSync(includeDir, { recursive: true })) {
 	const header = entry.replace(/\\/g, '/');
-	if (header.endsWith('.h') && header !== 'export.h' && !listed.has(header)) {
+	if (header.endsWith('.h') && !INTERNAL.has(header) && !listed.has(header)) {
 		console.warn(`gen-reference: ${header} isn't in the list; add it to scripts/gen-reference.mjs`);
 	}
 }
 
 fs.writeFileSync(path.join(outDir, 'index.md'), index.join('\n') + '\n');
+
+// The page above both languages' references.
+fs.writeFileSync(
+	path.join(outDir, '..', 'index.mdx'),
+	`---
+title: API reference
+description: Every type, function, and modifier in Elegance, for C++ and Rust.
+editUrl: false
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Each page lists what a header or module declares, with the documentation written next to it in
+the code. The guides explain how the pieces fit together; come here when you know what you're
+looking for and want the details.
+
+<CardGrid>
+	<LinkCard title="C++" description="One page per header in include/elg/, from the comments above each declaration." href="${(process.env.DOCS_BASE ?? '').replace(/\/$/, '')}/reference/cpp/" />
+	<LinkCard title="Rust" description="One page per module of the elegance crates, from their doc comments." href="${(process.env.DOCS_BASE ?? '').replace(/\/$/, '')}/reference/rust/" />
+</CardGrid>
+
+Both describe the same library: the Rust crates bind to the C++ one, so a view, modifier, or
+type usually has the same name in each (\`Text\`, \`.padding()\`, \`State\`), spelled the way the
+language spells things.
+`,
+);
 console.log(`gen-reference: ${headers.length} headers -> ${path.relative(process.cwd(), outDir)}`);

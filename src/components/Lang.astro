@@ -1,0 +1,13 @@
+---
+// Prose for one language: shown only while the reader has picked it.
+//   <Lang only="rust">Components are functions marked `#[component]`.</Lang>
+interface Props {
+	only: 'cpp' | 'rust';
+	// Inline, inside a sentence, instead of a block.
+	inline?: boolean;
+}
+const { only, inline = false } = Astro.props;
+const Tag = inline ? 'span' : 'div';
+---
+
+<Tag class={`elg-only-${only}`}><slot /></Tag>

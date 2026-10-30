@@ -1,46 +1,107 @@
 ---
-title: Elegance
-description: "Declarative, reactive UI for modern C++, drawn with WebGPU."
+title: Native apps, written like you think about them.
+description: "Elegance is a declarative, reactive UI framework for desktop apps in C++ and Rust, drawn on the GPU."
 template: splash
+editUrl: false
 hero:
-  tagline: Build native desktop apps the way you'd write SwiftUI, in C++23. Views are values, state is reactive, and every pixel is drawn on the GPU. No browser engine, no markup, no scripting layer.
-  image:
-    file: ../../assets/examples/layout.png
-    alt: A profile card built with Elegance
+  tagline: Elegance builds desktop interfaces from small, composable views. Describe what the screen should look like, connect it to state, and let the GPU draw it, in C++ or Rust, on Windows, macOS, and Linux.
   actions:
     - text: Get started
       link: start/introduction/
       icon: right-arrow
-    - text: See the examples
+    - text: Browse the examples
       link: examples/
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Icon } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import todos from '../../assets/examples/todos.png';
+import desktop from '../../assets/examples/desktop.png';
+import drawing from '../../assets/examples/drawing.png';
+import styling from '../../assets/examples/styling.png';
+import network from '../../assets/examples/network.png';
+import recorder from '../../assets/examples/recorder.png';
 
-```cpp
-View Counter() {
-    const State<int> count(0);
-    return VStack(Text([=] { return std::format("Count: {}", count()); }).font(Font::title),
-                  Button("Add one", [=] { count += 1; }));
-}
-```
+<div class="elg-home">
 
-<CardGrid>
-	<Card title="Declarative" icon="puzzle">
-		Compose views from stacks and chain modifiers like `.padding()`, `.background()` and
-		`.clip_shape()`. Appearance lives next to structure, in plain C++.
-	</Card>
-	<Card title="Reactive" icon="rocket">
-		Read a `State` in a closure and that closure re-runs when the state changes. Only the
-		properties that depend on it update; nothing is diffed or rebuilt.
-	</Card>
-	<Card title="GPU-native" icon="laptop">
-		A WebGPU renderer with analytic anti-aliasing, gradients, shadows, blur and vector paths.
-		Idle windows use no CPU, and live resizing stays smooth.
-	</Card>
-	<Card title="Batteries included" icon="star">
-		Text editing, lists, menus, animation, themes, images, audio, video, camera, HTTP, file
-		dialogs, notifications, accessibility, an inspector and hot reload.
-	</Card>
-</CardGrid>
+<section class="elg-home-section">
+	<p class="elg-home-kicker">Why Elegance</p>
+	<h2 class="elg-home-heading">Everything you need for a real app, nothing you don't.</h2>
+	<div class="elg-features">
+		<div class="elg-feature">
+			<span class="elg-feature-icon"><Icon name="puzzle" size="1.25rem" /></span>
+			<h3>Views are values</h3>
+			<p>Build screens from stacks, text, and controls, then refine them with modifiers like `.padding()` and `.background()`. Appearance lives next to structure, in the language you already write.</p>
+		</div>
+		<div class="elg-feature">
+			<span class="elg-feature-icon"><Icon name="rocket" size="1.25rem" /></span>
+			<h3>Precise updates</h3>
+			<p>Read state in a closure and that closure re-runs when the state changes. Nothing is diffed and nothing is rebuilt: only the text, color, or frame that depends on it updates.</p>
+		</div>
+		<div class="elg-feature">
+			<span class="elg-feature-icon"><Icon name="laptop" size="1.25rem" /></span>
+			<h3>Drawn on the GPU</h3>
+			<p>A WebGPU renderer with anti-aliased shapes, gradients, shadows, blur, and vector paths. Idle windows use no CPU, and resizing stays smooth.</p>
+		</div>
+		<div class="elg-feature">
+			<span class="elg-feature-icon"><Icon name="seti:rust" size="1.25rem" /></span>
+			<h3>C++ and Rust</h3>
+			<p>The same views and modifiers in both. C++ chains plain function calls; Rust adds `elg!`, a DSL that reads like the layout it builds. Every page here switches between them.</p>
+		</div>
+		<div class="elg-feature">
+			<span class="elg-feature-icon"><Icon name="pencil" size="1.25rem" /></span>
+			<h3>Hot reload and previews</h3>
+			<p>Save a file and the running window shows the change a moment later. Previews put a single component on screen, in as many variations as you like.</p>
+		</div>
+		<div class="elg-feature">
+			<span class="elg-feature-icon"><Icon name="star" size="1.25rem" /></span>
+			<h3>Batteries included</h3>
+			<p>Text editing, lazy lists, grids, menus, popovers, animation, themes, images, audio, video, the camera, file dialogs, notifications, and accessibility.</p>
+		</div>
+	</div>
+</section>
+
+<section class="elg-home-section">
+	<p class="elg-home-kicker">Made with Elegance</p>
+	<h2 class="elg-home-heading">Small apps you can read in one sitting.</h2>
+	<p class="elg-home-lead">Each example is a complete program, with its full source on the examples page.</p>
+	<div class="elg-gallery">
+		<a href="examples/#todos" class="elg-gallery-item elg-gallery-tall"><Image src={todos} alt="A to-do list app" /><span>To-dos</span></a>
+		<a href="examples/#recorder" class="elg-gallery-item elg-gallery-wide"><Image src={recorder} alt="A microphone and camera recorder" /><span>Recorder</span></a>
+		<a href="examples/#drawing" class="elg-gallery-item"><Image src={drawing} alt="Vector drawing" /><span>Drawing</span></a>
+		<a href="examples/#styling" class="elg-gallery-item"><Image src={styling} alt="Styled controls" /><span>Styling</span></a>
+		<a href="examples/#network" class="elg-gallery-item"><Image src={network} alt="An app loading images and data from the web" /><span>Network</span></a>
+		<a href="examples/#desktop" class="elg-gallery-item"><Image src={desktop} alt="File dialogs, notifications, and a tray icon" /><span>Desktop</span></a>
+	</div>
+</section>
+
+<section class="elg-home-section elg-home-start">
+	<p class="elg-home-kicker">Start building</p>
+	<h2 class="elg-home-heading">From nothing to a window in a few minutes.</h2>
+	<ol class="elg-steps">
+		<li>
+			<a href="start/installation/">
+				<span class="elg-step-number">1</span>
+				<strong>Install</strong>
+				<span>Add Elegance to a CMake project, or the crate to a Cargo one.</span>
+			</a>
+		</li>
+		<li>
+			<a href="start/first-app/">
+				<span class="elg-step-number">2</span>
+				<strong>Build your first app</strong>
+				<span>A to-do list, step by step: views, state, lists, and input.</span>
+			</a>
+		</li>
+		<li>
+			<a href="start/concepts/">
+				<span class="elg-step-number">3</span>
+				<strong>Learn the ideas</strong>
+				<span>The handful of concepts everything else is built from.</span>
+			</a>
+		</li>
+	</ol>
+</section>
+
+</div>

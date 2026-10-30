@@ -292,12 +292,13 @@ function docsToMarkdown(crate, item, printer, depth) {
 	return out.join('\n').trim();
 }
 
-// The first sentence or paragraph, for summaries.
+// The first sentence, for summaries. Periods inside code spans and "e.g." don't end it.
 function summaryOf(docs) {
 	if (!docs) return '';
 	const paragraph = docs.split(/\n\s*\n/)[0].replace(/\n/g, ' ').trim();
 	if (paragraph.startsWith('```') || paragraph.startsWith('|') || paragraph.startsWith('#')) return '';
-	return paragraph
+	const sentence = paragraph.match(/^(?:`[^`]*`|e\.g\.|i\.e\.|[^`])+?[.!?](?=\s|$)/);
+	return (sentence ? sentence[0] : paragraph)
 		.replace(/\[(`?)([^\]`]+)\1\]\([^)]*\)/g, '$1$2$1')
 		.replace(/\[(`?)([^\]`]+)\1\]/g, '$1$2$1');
 }

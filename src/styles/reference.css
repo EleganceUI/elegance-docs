@@ -1,0 +1,139 @@
+/* The API reference (generated pages, both languages): each symbol a small block with its kind,
+   name, declaration and description; a topics table at the top of the page to find it. */
+
+/* The kind above a symbol's name: "struct", "fn", "class", ... */
+.sl-markdown-content .elg-kind {
+	margin: 2.25rem 0 -0.35rem;
+	font: 600 0.7rem / 1 var(--sl-font-mono);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--elg-violet);
+}
+
+.sl-markdown-content h3:has(+ .elg-kind),
+.sl-markdown-content .elg-kind + h3 {
+	margin-top: 0.4rem;
+}
+
+/* The name comes first in the source, the kind under it; show the kind above. */
+.sl-markdown-content h3 + .elg-kind {
+	order: -1;
+	margin: 0.15rem 0 0.75rem;
+}
+
+.sl-markdown-content h3 {
+	font-family: var(--sl-font-mono);
+	font-size: 1.15rem;
+	letter-spacing: -0.01em;
+	margin-top: 2.5rem;
+}
+
+/* Topics: what's on the page, by kind. */
+.elg-topics {
+	margin: 2rem 0 1rem;
+	padding: 1.25rem 1.25rem 0.5rem;
+	border: 1px solid var(--sl-color-hairline);
+	border-radius: var(--elg-radius);
+	background: var(--elg-surface);
+}
+
+.elg-topics > p {
+	margin: 0 0 0.5rem;
+	font-size: var(--sl-text-xs);
+	text-transform: uppercase;
+	letter-spacing: 0.07em;
+	color: var(--sl-color-gray-3);
+}
+
+.elg-topics table {
+	display: table;
+	width: 100%;
+	margin: 0 0 1.25rem;
+	border-collapse: collapse;
+	font-size: var(--sl-text-sm);
+}
+
+.elg-topics thead {
+	display: none;
+}
+
+.elg-topics td {
+	padding: 0.4rem 0.75rem 0.4rem 0;
+	border: none;
+	border-top: 1px solid var(--sl-color-hairline);
+	vertical-align: top;
+	background: transparent !important;
+}
+
+.elg-topics td:first-child {
+	white-space: nowrap;
+	width: 1%;
+	padding-right: 1.5rem;
+}
+
+.elg-topics td:last-child {
+	color: var(--sl-color-gray-2);
+}
+
+/* Methods: a collapsible list under the type. */
+.elg-methods {
+	margin: 1.25rem 0;
+	border: 1px solid var(--sl-color-hairline);
+	border-radius: var(--elg-radius);
+	padding: 0 1rem;
+	background: var(--elg-surface);
+}
+
+.elg-methods > summary {
+	cursor: pointer;
+	padding: 0.75rem 0;
+	font-weight: 600;
+	font-size: var(--sl-text-sm);
+	color: var(--sl-color-gray-2);
+}
+
+.elg-methods[open] > summary {
+	border-bottom: 1px solid var(--sl-color-hairline);
+	margin-bottom: 0.75rem;
+}
+
+.elg-methods > .expressive-code {
+	margin-top: 1rem !important;
+}
+
+.elg-methods > p {
+	margin: 0.5rem 0 0.75rem 0.25rem;
+	font-size: var(--sl-text-sm);
+	color: var(--sl-color-gray-2);
+}
+
+/* Traits implemented, types implementing. */
+.sl-markdown-content .elg-traits {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.35rem;
+	font-size: var(--sl-text-sm);
+}
+
+.elg-traits > span {
+	margin-right: 0.35rem;
+	font-size: var(--sl-text-xs);
+	text-transform: uppercase;
+	letter-spacing: 0.07em;
+	color: var(--sl-color-gray-3);
+}
+
+/* Enum variants. */
+.elg-members dt {
+	margin-top: 0.75rem;
+}
+
+.elg-members dd {
+	margin-left: 1rem;
+	color: var(--sl-color-gray-2);
+}
+
+.elg-members dd > p {
+	margin: 0.25rem 0;
+}

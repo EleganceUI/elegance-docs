@@ -1,116 +1,176 @@
 ---
 title: Layout
-description: "How views get their size and position, and the tools to control it - stacks, spacers, frames, padding, alignment and priority."
+description: "How views get their size and position, and how to steer it with stacks, spacers, frames, padding, alignment, and priority."
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 import Example from '../../../components/Example.astro';
+import Lang from '../../../components/Lang.astro';
 
-Layout in Elegance follows SwiftUI's model. It's a conversation between parent and child, in
-three steps:
+You rarely give a view an exact position in Elegance. Instead you arrange views in stacks, and
+each view works out its own size from the space it's offered. This page explains how that works,
+and how to get the result you have in mind.
 
-1. The parent **proposes** a size to the child.
-2. The child **chooses** its own size, taking the proposal into account.
+## How a view gets its size
+
+Layout is a short conversation between a parent and each of its children:
+
+1. The parent **offers** the child a size.
+2. The child **picks** its own size, with the offer in mind.
 3. The parent **places** the child.
 
-A proposal can leave a dimension unspecified (asking for the child's ideal size), give zero
-(asking for its minimum), or infinity (asking for its maximum). Different views respond
-differently:
+Different views answer the offer differently:
 
-- `Text` takes the width it needs, up to the proposal, and wraps at word boundaries beyond that.
-  It truncates with an ellipsis when it runs out of lines.
-- Shapes take everything they're offered.
-- `Image` keeps its own size, unless made `.resizable()`.
-- Stacks divide their space among their children.
-- A window proposes its size to its root view, then centers the result.
+- **Text** takes the width its words need, up to what's offered, and wraps onto more lines when
+  it has to. If it runs out of lines, it ends with an ellipsis.
+- **Shapes** take everything they're offered.
+- **Images** keep their own size, unless you make them `.resizable()`.
+- **Stacks** share their space among their children (more on that below).
+- A **window** offers its whole size to its content, then centers whatever size the content picks.
 
-All sizes are in **logical points**; Elegance scales to the display's pixels.
+Sizes are in points, not pixels: Elegance scales them to the display, so a 16-point margin looks
+the same on a regular screen and a high-resolution one.
 
 ## Stacks
 
-`VStack` arranges children vertically, `HStack` horizontally, and `ZStack` on top of each other
-(the first child at the back).
+`VStack` lines its children up top to bottom, `HStack` side by side, and `ZStack` on top of each
+other, with the first child at the back.
 
 ```cpp
 VStack({.alignment = HorizontalAlignment::leading, .spacing = 4},
        Text("Elegance").font(Font::headline),
-       Text("SwiftUI-style UI for C++").foreground_style(ThemeColor::secondary));
+       Text("Native apps, in C++ or Rust").foreground_style(ThemeColor::secondary));
 
 ZStack({.alignment = Alignment::bottom_trailing},
        Image({.file = "photo.jpg"}),
        Text("NEW").padding(4).background(ThemeColor::accent));
 ```
 
-Stacks put `default_stack_spacing` (8 points) between children unless you set `spacing`. With the
-default spacing there's no gap next to a `Spacer`. Alignment is on the cross axis: horizontal for a `VStack`, vertical for an
-`HStack`, both for a `ZStack`.
+```rust
+VStack(alignment: .leading, spacing: 4) {
+    Text("Elegance").font(.headline)
+    Text("Native apps, in C++ or Rust").foreground_style(.secondary)
+}
 
-### How a stack divides space
-
-A stack offers its children space in order of flexibility: the least flexible first, so text and
-images get what they need, and whatever remains goes to the flexible ones (shapes, spacers,
-frames with `max_width = infinity`). Raise a child's `layout_priority` to serve it before the
-others:
-
-```cpp
-HStack(Text("A long title that might need to truncate").line_limit(1),
-       Text("12:30").layout_priority(1)); // the time never truncates
+ZStack(alignment: .bottom_trailing) {
+    Image(ImageSource::file("/path/to/photo.jpg"))
+    Text("NEW").padding(4).background(.accent)
+}
 ```
 
-## Spacers and dividers
+Without a `spacing`, a stack leaves 8 points between its children (and none next to a `Spacer`).
+The alignment works across the stack: a `VStack` aligns its children's left or right edges or
+centers, an `HStack` their tops, bottoms, centers, or text baselines.
 
-A `Spacer` expands along its stack's axis, pushing its siblings apart:
+### Who gets the space
+
+A stack serves its least flexible children first. Text and images get the room they need; what's
+left goes to the flexible ones, like shapes, spacers, and views with an unlimited frame. When
+there isn't enough for everyone, raise the `layout_priority` of the child that matters most:
+
+```cpp
+HStack(Text("A long title that might need to be cut short").line_limit(1),
+       Text("12:30").layout_priority(1)); // the time is never cut
+```
+
+```rust
+elg! {
+    HStack {
+        Text("A long title that might need to be cut short").line_limit(1)
+        Text("12:30").layout_priority(1) // the time is never cut
+    }
+}
+```
+
+## Spacers and separators
+
+A `Spacer` stretches along its stack, pushing the views on either side apart. It's the usual way
+to put something at the far end of a row:
 
 ```cpp
 HStack(Text("Settings").font(Font::headline), Spacer(), Button("Done", done));
 ```
 
-`Spacer(20)` has a minimum length. A `Separator` is a thin line across its container: `Separator()` is horizontal (for a
-`VStack`), `Separator(Axis::vertical)` vertical (for an `HStack`), and
-`Separator(Axis::vertical, {.color, .thickness, .inset})` changes how it looks.
+```rust
+# let done = || {};
+elg! {
+    HStack {
+        Text("Settings").font(.headline)
+        Spacer()
+        Button("Done", done)
+    }
+}
+```
+
+<Lang only="cpp">`Spacer(20)` never shrinks below 20 points.</Lang>
+<Lang only="rust">`Spacer().min_length(20)` never shrinks below 20 points.</Lang>
+A `Separator` draws a thin line across its stack: horizontal in a `VStack`, and vertical in an
+`HStack` when you give it the vertical axis
+(<Lang only="cpp" inline>`Separator(Axis::vertical)`</Lang><Lang only="rust" inline>`Separator().axis(.vertical)`</Lang>).
+You can also change its color, thickness, and inset.
 
 ## Padding
 
-`padding` adds space around a view, 16 points by default:
+`padding` adds space around a view:
 
 ```cpp
-Text("A").padding();                              // 16 on every side
+Text("A").padding();                              // 16 points on every side
 Text("B").padding(8);                             // 8 on every side
-Text("C").padding(Edges::horizontal, 12);         // left and right
+Text("C").padding(Edges::horizontal, 12);         // left and right only
 Text("D").padding(EdgeInsets{.top = 4, .bottom = 12});
-Text("E").padding(EdgeInsets::symmetric(16, 8));  // horizontal, vertical
+Text("E").padding(EdgeInsets::symmetric(16, 8));  // 16 left and right, 8 top and bottom
+```
+
+```rust
+Text("B").padding(8)                         // 8 points on every side
+Text("C").padding_edges(.horizontal, 12)     // left and right only
+Text("D").padding(top: 4, bottom: 12)
+Text("E").padding(horizontal: 16, vertical: 8)
 ```
 
 ## Frames
 
-`frame` with fixed dimensions sets a size, aligning the content inside it:
+`frame` with a width and height gives a view that size, and centers its content inside:
 
 ```cpp
 Circle().fill(ThemeColor::accent).frame(40, 40);
 Text("Title").frame({.width = 200, .alignment = Alignment::leading});
 ```
 
-A *flexible* frame gives a range instead. The common use is to make something take all available
-space:
+```rust
+Circle().fill(.accent).frame(40, 40)
+Text("Title").frame(width: 200, alignment: .leading)
+```
+
+A frame can also give a range instead of a size. Most often you'll use this to let a view take all
+the space there is:
 
 ```cpp
 Button(Text("Continue").frame({.max_width = infinity}), next); // a full-width button
 
-content.frame({.max_width = infinity, .max_height = infinity, .alignment = Alignment::top_leading});
+VStack(Text("Top left")).frame({.max_width = infinity, .max_height = infinity, .alignment = Alignment::top_leading});
 ```
 
-The flexible form takes `min_width`, `ideal_width`, `max_width` and the same for height. The frame
-takes the proposed size clamped to that range, then places the content in it.
+```rust
+# let next = || {};
+Button(action: next) { Text("Continue").frame(max_width: .infinity) } // a full-width button
+
+VStack { Text("Top left") }.frame(max_width: .infinity, max_height: .infinity, alignment: .top_leading)
+```
+
+The range can have a minimum, an ideal, and a maximum for each side (`min_width`, `ideal_width`,
+`max_width`, and the same for height). The frame takes the size it's offered, kept within that
+range, and puts the content inside it.
 
 <Aside>
 To make a button wider, put the frame on its **label**, as above. A frame around the whole button
-makes room around it, but the button's background stays the size of its label.
+makes room around it, but the button itself stays the size of its label.
 </Aside>
 
-### Fixed size and aspect ratio
+### Keeping a size or a shape
 
-`fixed_size()` gives a view its ideal size regardless of the proposal, for example to stop a text
-from wrapping. `aspect_ratio` sizes a view to a ratio within what's offered:
+`fixed_size()` makes a view take its ideal size whatever it's offered: text that should never wrap,
+for example. `aspect_ratio` keeps a view in proportion:
 
 ```cpp
 Text("Never wraps").fixed_size();
@@ -118,13 +178,20 @@ Rectangle().fill(ThemeColor::surface).aspect_ratio(16.f / 9.f);
 Image({.file = "cover.jpg"}).resizable().aspect_ratio(ContentMode::fill).frame(120, 120).clipped();
 ```
 
-`ContentMode::fit` keeps all of the content visible; `ContentMode::fill` covers the space,
-overflowing on one axis (clip it with `.clipped()` or `.clip_shape()`).
+```rust
+# let cover = "/path/to/cover.jpg";
+Text("Never wraps").fixed_size()
+Rectangle().fill(.surface).aspect_ratio(16.0 / 9.0, .fit)
+Image(ImageSource::file(cover)).resizable().aspect_ratio(mode: .fill).frame(120, 120).clipped()
+```
+
+With `fit`, all of the content stays visible. With `fill`, it covers the whole space and spills
+over on one side, so you usually clip it with `.clipped()` or `.clip_shape()`.
 
 ## Backgrounds and overlays
 
-`background` and `overlay` add a view behind or in front of another, sized to it. They don't
-change layout:
+`background` puts a view behind another and `overlay` puts one in front, both sized to match.
+Neither changes the layout:
 
 ```cpp
 Text("3")
@@ -135,23 +202,38 @@ Text("3")
 Image("bell").overlay(Circle().fill(ThemeColor::danger).frame(8, 8), Alignment::top_trailing);
 ```
 
-## Offset and stacking order
+```rust
+Text("3")
+    .padding(6)
+    .background_in(.danger, Circle())
+    .overlay(Circle().stroke_border(.white, 2))
 
-`offset` moves a view when it's drawn, without affecting the layout around it (and animates the
-move during animated updates). `z_index` changes the drawing order among siblings in any stack:
+Image("bell").overlay(Circle().fill(.danger).frame(8, 8), alignment: .top_trailing)
+```
+
+## Moving and layering
+
+`offset` moves a view where it's drawn, without moving anything around it, which is handy while
+dragging. `z_index` changes which siblings are drawn on top:
 
 ```cpp
 Text("Dragged").offset(drag_x, drag_y).z_index(1);
 ```
 
+```rust
+# let (drag_x, drag_y) = (State::new(0.0_f32), State::new(0.0_f32));
+elg! { Text("Dragged").offset(drag_x, drag_y).z_index(1) }
+```
+
 ## Scrolling
 
-A `ScrollView` shows its content at its ideal size along the scroll axis, clipped to the space
-it's given. See [Lists and dynamic content](../lists/) for scroll views, lazy stacks and lists.
+A `ScrollView` lets its content be as tall (or wide) as it likes and shows the part that fits.
+[Lists and dynamic content](../lists/) covers scroll views and lazy stacks.
 
 ## Putting it together
 
 <Example name="layout" />
 
-The `FlowLayout` in this example is a custom layout: a type that measures and places children
-itself. See [Custom layouts](../custom-layouts/).
+The `FlowLayout` in this example arranges its children like words in a paragraph. It's a custom
+layout: a type that measures and places its children itself. See
+[Custom layouts](../custom-layouts/).

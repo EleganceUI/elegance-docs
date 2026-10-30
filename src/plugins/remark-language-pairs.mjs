@@ -24,9 +24,21 @@ const element = (tagName, properties, children = []) => ({
 	children,
 });
 
+// Rust lines starting with "# " are set-up the sample needs to compile (scripts/check-rust-samples.mjs)
+// but readers don't, as in rustdoc: they're left out of the page.
+const hideSetup = (node) => {
+	if (node.type === 'code' && node.lang === 'rust') {
+		node.value = node.value
+			.split('\n')
+			.filter((line) => !/^\s*#( |$)/.test(line))
+			.join('\n');
+	}
+};
+
 export default function remarkLanguagePairs() {
 	return (tree) => {
 		const visit = (node) => {
+			hideSetup(node);
 			if (!node.children) return;
 			const out = [];
 			for (let i = 0; i < node.children.length; i++) {
@@ -40,6 +52,8 @@ export default function remarkLanguagePairs() {
 							element('button', { type: 'button', dataSetLang: id, className: ['elg-lang-tab'] }, [{ type: 'text', value: label }]),
 						),
 					);
+					hideSetup(first);
+					hideSetup(second);
 					out.push(element('div', { className: ['elg-lang-pair'] }, [tabs, first, second]));
 					i++;
 					continue;

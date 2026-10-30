@@ -1,18 +1,22 @@
 ---
 title: Your first app
-description: "Build a small todo list step by step, learning views, modifiers, state and lists along the way."
+description: "Build a small to-do list step by step, and meet views, modifiers, state, and lists on the way."
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 import Example from '../../../components/Example.astro';
+import Lang from '../../../components/Lang.astro';
 
-This tutorial builds the todo list from the `todos-cpp` example one piece at a time. You'll meet the
-ideas used in every Elegance app: views, modifiers, state, bindings and lists.
+In this tutorial you'll build a to-do list: a text field to add items, a list you can check off,
+and a count of what's left. It takes about fifteen minutes, and by the end you'll have used the
+ideas every Elegance app is made of: views, modifiers, state, bindings, and lists.
 
-## 1. A window
+If you haven't set up a project yet, start with [Installation](../installation/).
+
+## 1. Open a window
 
 Every app has one `App`. It opens windows, runs the event loop, and returns when the last window
-closes:
+closes. A window shows a view:
 
 ```cpp
 #include <elg/elegance.h>
@@ -28,14 +32,29 @@ int main() {
 }
 ```
 
-The second argument builds the window's content. It runs once, when the window opens, and
-returns a `View`.
+```rust
+use elegance::prelude::*;
 
-## 2. Views and modifiers
+#[component]
+fn TodoApp() -> impl IntoView {
+    elg! { Text("Todos").font(.large_title) }
+}
 
-Views are values: `Text`, `Button`, `VStack`, `Circle` and the rest are functions that return a
-`View`. Modifiers such as `.padding()` and `.font()` return a new view wrapping the old one, so
-you chain them:
+fn main() -> Result<std::process::ExitCode, Error> {
+    App::new().window(WindowDesc::new("Todos").size(480, 560), TodoApp).run()
+}
+```
+
+<Lang only="cpp">The function you pass to `window` builds the window's content.</Lang>
+<Lang only="rust">`TodoApp` is a *component*: a function that builds part of the interface. `#[component]` lets you use it like any built-in view, and `elg!` is where you describe what it shows.</Lang>
+It runs once, when the window opens. Run the app and you'll see the title in the middle of the
+window.
+
+## 2. Arrange views with stacks and modifiers
+
+`Text`, `Button`, `Image`, and the shapes are views. Stacks arrange other views: `VStack` top to
+bottom, `HStack` side by side. Modifiers like `.padding()` and `.font()` return a changed copy of
+a view, so you chain them:
 
 ```cpp
 View TodoApp() {
@@ -47,49 +66,98 @@ View TodoApp() {
 }
 ```
 
-`VStack` places its children top to bottom. The final `.frame` lets the stack take the whole
-window and pins its content to the top-left corner; without it the content is centered.
+```rust
+#[component]
+fn TodoApp() -> impl IntoView {
+    elg! {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Todos").font(.large_title)
+            Text("Nothing left to do.").foreground_style(.secondary)
+        }
+        .padding(24)
+        .frame(max_width: .infinity, max_height: .infinity, alignment: .top_leading)
+    }
+}
+```
 
-Pass the function to the window: `app.window({...}, TodoApp)`.
+The stack lines its children up on their leading edge, 12 points apart. The last line lets the
+stack fill the window and keeps its content in the top-left corner; without it, a view is only as
+big as its content and sits in the middle.
 
-## 3. State
+<Lang only="cpp">Pass the function to the window: `app.window({...}, TodoApp)`.</Lang>
 
-A `State<T>` holds a value that can change. It's a cheap handle: copies refer to the same value,
-so closures capture it **by value** (`[=]`) and can still write to it.
+<Lang only="rust">
+
+`.leading`, `.secondary`, and `.infinity` are shorthand: inside `elg!`, a name with a leading dot
+means "the value by that name, of whatever type goes here". `alignment: .leading` is
+`HorizontalAlignment::Leading`.
+
+</Lang>
+
+## 3. Keep the draft in state
+
+The text field needs somewhere to keep what you type. That's what `State` is for: a value that
+can change, which views can follow.
 
 ```cpp
 const State<std::string> draft;
 const State<int> next_id(4);
 ```
 
-Reading a state inside a closure that Elegance runs, such as the content of a `Text` or a
-`.disabled` condition, subscribes that closure. When the state changes, the closure runs again and
-updates that one property:
+```rust
+let draft = State::new(String::new());
+let mut next_id = State::new(4_i64);
+```
+
+A state is a small handle. Copies of it all refer to the same value, so you can capture it in as
+many closures as you like<Lang only="cpp" inline> (by value, with `[=]`)</Lang><Lang only="rust" inline> (with `move`)</Lang>,
+and they can all read and write it.
+
+When Elegance runs a closure you gave it, such as the condition for disabling a button, and the
+closure reads a state, Elegance remembers that. When the state changes, the closure runs again
+and the button updates:
 
 ```cpp
 Button("Add", add).disabled([=] { return draft().empty(); })
 ```
 
-<Aside>
-The view functions themselves run once. Only the closures you pass as arguments re-run. Writing
-`Text(draft())` would read the value once and never update; `Text([=] { return draft(); })`
-follows it.
-</Aside>
-
-## 4. Bindings and text fields
-
-Controls that edit a value take a `Binding<T>`: a pair of get and set functions. A `State`
-converts to one, so a text field can edit the draft directly:
-
-```cpp
-TextField("What needs doing?", draft, {.on_submit = add})
+```rust
+# let draft = State::new(String::new());
+# let add = || {};
+Button("Add", add).disabled(move || draft.read().is_empty())
 ```
 
-## 5. A list
+<Aside title="Pass a closure, not a value">
+Your view functions run only once. What updates later is the closures you pass in.
+<Lang only="cpp" inline>`Text(draft())` reads the text once and never changes; `Text([=] { return draft(); })` follows it.</Lang>
+<Lang only="rust" inline>`Text(draft.get())` reads the text once and never changes; `Text(move || draft.get())`, or `Text("{draft}")` in `elg!`, follows it.</Lang>
+</Aside>
 
-The todos are a `State<std::vector<Todo>>`. `ForEach` makes one view per item, identified by a key
-so that items keep their views when the list changes. A `LazyVStack` in a `ScrollView` stacks
-them, builds only the rows that are visible, and draws a line between them:
+## 4. Edit it with a text field
+
+Controls that change a value, like text fields, toggles, and sliders, take a *binding*: a way to
+both read and write it. Pass the state itself and the field edits it directly:
+
+```cpp
+HStack(TextField("What needs doing?", draft, {.on_submit = add}),
+       Button("Add", add).disabled([=] { return draft().empty(); }))
+```
+
+```rust
+# let draft = State::new(String::new());
+# let add = || {};
+HStack {
+    TextField("What needs doing?", draft, on_submit: add)
+    Button("Add", add).disabled(move || draft.read().is_empty())
+}
+```
+
+`on_submit` runs when you press Return in the field, so typing and pressing Return adds the item,
+the same as clicking the button.
+
+## 5. Show the list
+
+Each to-do has an id, a title, and whether it's done. The whole list lives in one state:
 
 ```cpp
 struct Todo {
@@ -101,7 +169,25 @@ struct Todo {
 };
 
 const State<std::vector<Todo>> todos(std::vector<Todo>{{1, "Read the docs"}});
+```
 
+```rust
+#[derive(Clone, PartialEq)]
+struct Todo {
+    id: i64,
+    title: String,
+    done: bool,
+}
+
+let todos = State::new(vec![Todo { id: 1, title: "Read the docs".into(), done: false }]);
+```
+
+`ForEach` makes a view for each item. The id tells Elegance which item is which, so when the list
+changes, each row keeps its own view instead of being rebuilt. A `LazyVStack` stacks the rows
+(building only the ones on screen) and draws a line between them, and a `ScrollView` scrolls it
+when it gets long:
+
+```cpp
 ScrollView(LazyVStack({.spacing = 0, .separators = StackSeparators{.inset = 16}},
                       ForEach(todos, &Todo::id, [=](const Todo& todo) {
                           return TodoRow(todo.id, todo.title, todos).padding(EdgeInsets::symmetric(16, 10));
@@ -109,18 +195,47 @@ ScrollView(LazyVStack({.spacing = 0, .separators = StackSeparators{.inset = 16}}
                .background(ThemeColor::surface, RoundedRectangle(10)))
 ```
 
-`If` shows one view or another depending on a condition:
+```rust
+# #[derive(Clone, PartialEq)] struct Todo { id: i64, title: String, done: bool }
+# let todos = State::new(Vec::<Todo>::new());
+# #[component] fn TodoRow(id: i64, title: String, todos: State<Vec<Todo>>) -> impl IntoView { elg! { Text(title) } }
+ScrollView {
+    LazyVStack(spacing: 0, separators: StackSeparators::default().inset(16)) {
+        ForEach(todos, id: |t| t.id) { todo in
+            TodoRow(id: todo.id, title: todo.title.clone(), todos: todos)
+                .padding(horizontal: 16, vertical: 10)
+        }
+    }
+    .background_in(.surface, RoundedRectangle(10))
+}
+```
+
+When the list is empty, show a message instead. <Lang only="cpp" inline>`If`</Lang><Lang only="rust" inline>An `if` in `elg!`</Lang>
+picks between two views, and switches when its condition changes:
 
 ```cpp
 If([=] { return todos().empty(); },
    Text("Nothing left to do."),
-   ScrollView(LazyVStack(ForEach(todos, &Todo::id, ...))))
+   ScrollView(LazyVStack(...)))
 ```
 
-## 6. Changing the list, with animation
+```rust
+# #[derive(Clone, PartialEq)] struct Todo { id: i64, title: String, done: bool }
+# let todos = State::new(Vec::<Todo>::new());
+# let _ = elg! {
+if todos.read().is_empty() {
+    Text("Nothing left to do.")
+} else {
+    ScrollView { LazyVStack { /* the rows */ } }
+}
+# };
+```
 
-`State::update` changes the value in place. Wrapping a change in `with_animation` animates
-everything it causes: the new row fades in, and the rows below slide down to make room.
+## 6. Add items, with animation
+
+To change a state's value in place, <Lang only="cpp" inline>call `update` with a function that edits it</Lang><Lang only="rust" inline>write through `write()`, which notifies everything that reads the state once you're done</Lang>.
+Wrapping the change in `with_animation` animates everything it causes: the new row fades in, and
+anything below it slides down to make room.
 
 ```cpp
 const auto add = [=] {
@@ -135,22 +250,59 @@ const auto add = [=] {
 };
 ```
 
-## 7. Derived values
+```rust
+# #[derive(Clone, PartialEq)] struct Todo { id: i64, title: String, done: bool }
+# let todos = State::new(Vec::<Todo>::new());
+# let draft = State::new(String::new());
+# let mut next_id = State::new(4_i64);
+let add = move || {
+    if draft.read().is_empty() {
+        return;
+    }
+    with_animation(Animation::smooth(0.4), || {
+        todos.write().push(Todo { id: next_id.get(), title: draft.get(), done: false });
+    });
+    next_id += 1;
+    draft.set(String::new());
+};
+```
 
-A `computed` value is recalculated only when the state it reads changes, and only when someone
-reads it:
+Clearing `draft` empties the text field, because the field shows whatever the state holds.
+
+## 7. Count what's left
+
+Some values are worked out from others, like the number of unfinished to-dos. A *computed* value
+keeps one up to date: it recalculates only when the state it reads changes, and only when
+something needs it.
 
 ```cpp
 const auto remaining = computed([=] { return std::ranges::count(todos(), false, &Todo::done); });
+
 Text([=] { return std::format("{} left", remaining()); })
 ```
 
+```rust
+# #[derive(Clone, PartialEq)] struct Todo { id: i64, title: String, done: bool }
+# let todos = State::new(Vec::<Todo>::new());
+let remaining = todos.map(|list| list.iter().filter(|t| !t.done).count());
+
+elg! { Text("{remaining} left") }
+```
+
+Checking off a to-do changes `todos`, which changes `remaining`, which updates the text. Nothing
+else on screen is touched.
+
 ## The whole app
+
+Here is everything together, with a `TodoRow` that has a checkbox and a delete button. Its
+checkbox uses a binding made by hand, which reads and writes the `done` field of one item in the
+list.
 
 <Example name="todos" />
 
-## Next steps
+## Where to go from here
 
-- [Thinking in Elegance](../concepts/) explains the model behind what you just used.
-- [Layout](../../guides/layout/) covers stacks, frames and spacing in depth.
-- [State and data flow](../../guides/state/) covers bindings, effects and sharing state.
+- [Thinking in Elegance](../concepts/) explains the model behind what you just did.
+- [Layout](../../guides/layout/) goes deeper into stacks, frames, and spacing.
+- [State and data flow](../../guides/state/) covers bindings, effects, and sharing state between
+  views.

@@ -276,17 +276,20 @@ function docsToMarkdown(crate, item, printer, depth) {
 		// Headings inside docs go below the item's heading.
 		const heading = prose.match(/^(#{1,6})\s+(.*)$/);
 		if (heading) prose = `${'#'.repeat(Math.min(6, heading[1].length + depth))} ${heading[2]}`;
-		// [text](target) where target is an intra-doc path.
-		prose = prose.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, target) => {
-			if (/^(https?:|#|\/|mailto:)/.test(target)) return match;
-			const url = resolve(target);
-			return url ? `[${label}](${url})` : label;
-		});
-		// [`Name`] and [Name] shortcuts.
-		prose = prose.replace(/\[(`?)([^\]`]+)\1\](?![(\[:])/g, (match, tick, name) => {
-			const url = resolve(name);
-			return url ? `[${tick}${name}${tick}](${url})` : `${tick}${name}${tick}`;
-		});
+		prose = outsideCode(prose, (text) =>
+			text
+				// [text](target) where target is an intra-doc path.
+				.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, target) => {
+					if (/^(https?:|#|\/|mailto:)/.test(target)) return match;
+					const url = resolve(target);
+					return url ? `[${label}](${url})` : label;
+				})
+				// [`Name`] and [Name] shortcuts.
+				.replace(/\[(`?)([^\]`]+)\1\](?![(\[:])/g, (match, tick, name) => {
+					const url = resolve(name);
+					return url ? `[${tick}${name}${tick}](${url})` : `${tick}${name}${tick}`;
+				}),
+		);
 		out.push(prose);
 	}
 	return out.join('\n').trim();
@@ -298,9 +301,18 @@ function summaryOf(docs) {
 	const paragraph = docs.split(/\n\s*\n/)[0].replace(/\n/g, ' ').trim();
 	if (paragraph.startsWith('```') || paragraph.startsWith('|') || paragraph.startsWith('#')) return '';
 	const sentence = paragraph.match(/^(?:`[^`]*`|e\.g\.|i\.e\.|[^`])+?[.!?](?=\s|$)/);
-	return (sentence ? sentence[0] : paragraph)
-		.replace(/\[(`?)([^\]`]+)\1\]\([^)]*\)/g, '$1$2$1')
-		.replace(/\[(`?)([^\]`]+)\1\]/g, '$1$2$1');
+	return outsideCode(sentence ? sentence[0] : paragraph, (text) =>
+		text.replace(/\[(`?)([^\]`]+)\1\]\([^)]*\)/g, '$1$2$1').replace(/\[(`?)([^\]`]+)\1\]/g, '$1$2$1'),
+	);
+}
+
+// Applies `change` to text and to links around code (`[`Name`]`), but not inside other code
+// spans, where brackets are code: `#[component]`.
+function outsideCode(text, change) {
+	return text
+		.split(/(\[`[^`]+`\](?:\([^)\s]*\))?|`[^`]*`)/)
+		.map((part) => (part.startsWith('`') ? part : change(part)))
+		.join('');
 }
 
 const escapeCell = (text) => text.replace(/\|/g, '\\|');
@@ -526,10 +538,8 @@ function plan(crate) {
 			continue;
 		}
 		const page = pageSlug(crate, key);
-		for (const item of mod.items) {
-			const title = kindOf(item) === 'macro' || (kindOf(item) === 'proc_macro' && item.inner.proc_macro.kind === 'bang') ? `${item.name}!` : item.name;
-			crate.pages.set(String(item.id), `${base}/${page}/#${slug(title)}`);
-		}
+		const anchors = anchorsOf(mod);
+		for (const item of mod.items) crate.pages.set(String(item.id), `${base}/${page}/#${anchors.get(item)}`);
 		// Methods and variants link to their type.
 		for (const item of mod.items) {
 			const inner = item.inner[kindOf(item)];
@@ -540,6 +550,42 @@ function plan(crate) {
 			}
 		}
 	}
+}
+
+const itemTitle = (item) =>
+	kindOf(item) === 'macro' || (kindOf(item) === 'proc_macro' && item.inner.proc_macro.kind === 'bang') ? `${item.name}!` : item.name;
+
+// A module page's items, by kind (structs, then enums, ...) and name: the order of the page.
+function groupsOf(mod) {
+	const groups = new Map();
+	for (const item of mod.items) {
+		const group = kindTitle[kindOf(item)];
+		if (!groups.has(group)) groups.set(group, []);
+		groups.get(group).push(item);
+	}
+	const sorted = [...groups.entries()].sort(
+		(a, b) => kindOrder.findIndex((k) => kindTitle[k] === a[0]) - kindOrder.findIndex((k) => kindTitle[k] === b[0]),
+	);
+	for (const [, items] of sorted) items.sort((a, b) => a.name.localeCompare(b.name));
+	return sorted;
+}
+
+// Each item's heading id, as the site will make it: a repeated slug (the struct Computed and the
+// function computed) gets -1, -2, ... in page order.
+function anchorsOf(mod) {
+	const used = new Map();
+	const take = (text) => {
+		const base = slug(text);
+		const count = used.get(base) ?? 0;
+		used.set(base, count + 1);
+		return count ? `${base}-${count}` : base;
+	};
+	const anchors = new Map();
+	for (const [group, items] of groupsOf(mod)) {
+		take(group);
+		for (const item of items) anchors.set(item, take(itemTitle(item)));
+	}
+	return anchors;
 }
 
 function pageSlug(crate, moduleKey) {
@@ -575,16 +621,8 @@ function render(crate, key, mod, order) {
 	if (mod.module?.docs) {
 		out.push(docsToMarkdown(crate, mod.module, printer, 1), '');
 	}
-	const groups = new Map();
-	for (const item of mod.items) {
-		const group = kindTitle[kindOf(item)];
-		if (!groups.has(group)) groups.set(group, []);
-		groups.get(group).push(item);
-	}
-	const sortedGroups = [...groups.entries()].sort(
-		(a, b) => kindOrder.findIndex((k) => kindTitle[k] === a[0]) - kindOrder.findIndex((k) => kindTitle[k] === b[0]),
-	);
-	for (const [, items] of sortedGroups) items.sort((a, b) => a.name.localeCompare(b.name));
+	const sortedGroups = groupsOf(mod);
+	const anchors = anchorsOf(mod);
 
 	// Topics: everything on the page at a glance.
 	if (mod.items.length > 1) {
@@ -592,8 +630,7 @@ function render(crate, key, mod, order) {
 		for (const [group, items] of sortedGroups) {
 			out.push(`**${group}**`, '', '| | |', '| --- | --- |');
 			for (const item of items) {
-				const name = kindOf(item) === 'macro' || (kindOf(item) === 'proc_macro' && item.inner.proc_macro.kind === 'bang') ? `${item.name}!` : item.name;
-				out.push(`| [\`${name}\`](#${slug(name)}) | ${escapeCell(summaryOf(item.docs))} |`);
+				out.push(`| [\`${itemTitle(item)}\`](#${anchors.get(item)}) | ${escapeCell(summaryOf(item.docs))} |`);
 			}
 			out.push('');
 		}

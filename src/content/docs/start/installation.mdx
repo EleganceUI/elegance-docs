@@ -1,160 +1,233 @@
 ---
 title: Installation
-description: "Build Elegance from source and add it to a CMake project."
+description: "Set up a C++ or Rust project that uses Elegance."
 ---
 
-import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps, Aside } from '@astrojs/starlight/components';
+import Lang from '../../../components/Lang.astro';
 
-Elegance is built from source with CMake. Its dependencies come from
-[vcpkg](https://vcpkg.io) in manifest mode, so they're downloaded and built for you on the first
-configure.
+<Lang only="cpp">
+
+In C++, Elegance is built from source with CMake, alongside your app. Its dependencies come from
+[vcpkg](https://vcpkg.io), which downloads and builds them the first time you configure. Using
+Rust instead? Switch the language at the top of the sidebar.
+
+</Lang>
+
+<Lang only="rust">
+
+In Rust, Elegance is a crate. On the common platforms, Cargo downloads a prebuilt copy of the
+native library, so there's no C++ toolchain to install. Using C++ instead? Switch the language at
+the top of the sidebar.
+
+</Lang>
+
+## The fastest start
+
+Every project in [elegance-examples](https://github.com/EleganceUI/elegance-examples) is complete
+on its own. Copy <Lang only="cpp" inline>`hello-cpp`</Lang><Lang only="rust" inline>`hello-rs`</Lang>
+somewhere, rename it, and build it: you have an app with a window, a component, and some state,
+ready to change.
+
+The rest of this page sets up a project from scratch.
+
+<Lang only="rust">
 
 ## Requirements
 
-- **Windows 10 or 11**, x64.
-- **Visual Studio 2022 or later** with the C++ workload (MSVC with C++23 support).
-- **CMake 4.3** or later, and **git**. Ninja and vcpkg are optional: the configure fetches Ninja
-  when it isn't installed, and uses the vcpkg at `VCPKG_ROOT`, or clones its own into
-  `%LOCALAPPDATA%\elegance\vcpkg` (`~/.cache/elegance/vcpkg` on macOS and Linux).
-- A GPU with **Direct3D 12** (or Direct3D 11 or Vulkan) drivers. Elegance draws with WebGPU,
-  through Google's Dawn, which vcpkg builds from source the first time: allow about half an hour
-  and 20 GB of free disk space for that build.
+- **Rust**, a recent stable toolchain (edition 2024).
+- **Windows 10 or 11**, **macOS 13.3 or later**, or **Linux** with glibc 2.35 or later.
+- `curl` and `tar`, which Windows, macOS, and Linux distributions include.
+- A GPU with Direct3D 12, Metal, or Vulkan drivers.
 
-## Build the repository
+## Create a project
 
 <Steps>
 
-1. Configure with a preset. Run this from a **Developer Command Prompt** (or in CLion or Visual
-   Studio, which set up the compiler for you):
+1. Make a new binary crate:
 
    ```sh
-   cmake --preset windows-debug
+   cargo new my-app
+   cd my-app
    ```
 
-   The first configure builds the dependencies (SDL3, FreeType, HarfBuzz, miniaudio and a few
-   more), which takes a while. Later configures reuse them.
+2. Add Elegance to `Cargo.toml`:
 
-2. Build:
+   ```toml title="Cargo.toml"
+   [dependencies]
+   elegance = { git = "https://github.com/EleganceUI/elegance-rs" }
+   ```
+
+3. Replace `src/main.rs`:
+
+   ```rust title="src/main.rs"
+   use elegance::prelude::*;
+
+   #[component]
+   fn Root() -> impl IntoView {
+       elg! { Text("Hello from Elegance") }
+   }
+
+   fn main() -> Result<std::process::ExitCode, Error> {
+       App::new().window(WindowDesc::new("It works").size(400, 300), Root).run()
+   }
+   ```
+
+4. Run it:
 
    ```sh
-   cmake --build build/windows-debug
+   cargo run
    ```
 
-3. Run the sandbox, which shows most features in one window:
-
-   ```sh
-   build\windows-debug\bin\sandbox.exe
-   ```
-
-   The examples are in their own repository,
-   [elegance-examples](https://github.com/EleganceUI/elegance-examples).
+   The first build downloads Elegance's native library (`elegance_c`) for your platform and
+   copies it next to your executable. Later builds reuse it from a shared cache.
 
 </Steps>
 
-The presets are `windows-debug` and `windows-release` (RelWithDebInfo), plus two static ones (see
-[Linking statically](#linking-statically)): `windows-release-static` links Elegance into each app,
-and `windows-release-fully-static` links everything, so each app is a single executable.
-Everything lands in `build/<preset>/bin`.
+## Shipping an app
 
-### macOS (Apple Silicon)
+The native library has to travel with your executable: keep it in the same folder. On Linux, also
+give the executable an rpath of `$ORIGIN` so it finds the library there:
 
-Use **Xcode 26 or later**, selected with `xcode-select`. Xcode 16's libc++ does not expose
-`std::jthread` and `std::stop_token`, even in C++23 mode.
-
-vcpkg needs `pkg-config` to build the dependencies (`brew install pkg-config`). Then:
-
-```sh
-cmake --preset macos-debug
-cmake --build build/macos-debug
+```toml title=".cargo/config.toml"
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-args=-Wl,-rpath,$ORIGIN"]
 ```
 
-The macOS presets set `CMAKE_OSX_DEPLOYMENT_TARGET=13.3` and use the overlay triplet in
-`cmake/triplets/arm64-osx.cmake` to build vcpkg dependencies for the same deployment target.
-The compiler/SDK version and deployment target are independent: a new Xcode can still target
-an older macOS.
+On macOS, the library is already set up to load from beside the executable. Signing and
+notarizing the app are up to you, as with any Mac app.
 
-If an existing build warns that dependency objects were built for a newer macOS version than
-13.3, rerun `cmake --preset macos-debug` before building. The updated triplet invalidates the
-old vcpkg binaries and rebuilds dependencies; the first configure can take as long as a fresh
-install. `cmake --fresh` alone does not rebuild dependencies with the wrong deployment target.
-If you change the deployment target, update both the preset and overlay triplet together.
+## Building Elegance from source
+
+Cargo builds Elegance from source instead of downloading it when there's no prebuilt library for
+your target, when you set `ELEGANCE_PREBUILT=0`, or when you use [previews and hot
+reload](../../guides/hot-reload/), which need the shared library. A source build needs the same
+tools as a C++ project (Visual Studio's C++ workload, Xcode 26, or GCC 14), and the first one takes
+about half an hour. The [elegance-rs README](https://github.com/EleganceUI/elegance-rs#using-it)
+lists the environment variables that control where Elegance comes from.
+
+</Lang>
+
+<Lang only="cpp">
+
+## Requirements
+
+- A **C++23** compiler:
+  - **Windows 10 or 11**: Visual Studio 2022 or later, with the C++ workload.
+  - **macOS 13.3 or later** on Apple Silicon: Xcode 26 or later. (Xcode 16's standard library is
+    missing `std::jthread` and `std::stop_token`, which Elegance needs.)
+  - **Linux**: GCC 14 or later, with the X11 and Wayland development headers.
+- **CMake 4.3** or later, and **git**. On macOS and Linux, also `pkg-config`
+  (`brew install pkg-config` on macOS).
+- A GPU with Direct3D 12, Metal, or Vulkan drivers.
+- About 20 GB of free disk space and half an hour for the first configure, which builds Dawn,
+  Google's WebGPU implementation, from source.
+
+Ninja and vcpkg are optional: the configure fetches Ninja when it isn't installed, and uses the
+vcpkg at `VCPKG_ROOT` or clones its own (into `%LOCALAPPDATA%\elegance\vcpkg` on Windows,
+`~/.cache/elegance/vcpkg` elsewhere).
+
+## Add Elegance to a project
+
+<Steps>
+
+1. Put Elegance in your project, for example as a git submodule:
+
+   ```sh
+   git submodule add https://github.com/EleganceUI/elegance external/elegance
+   ```
+
+2. Add it to your `CMakeLists.txt` and link `Elegance::Elegance`:
+
+   ```cmake title="CMakeLists.txt"
+   cmake_minimum_required(VERSION 4.3)
+   project(MyApp LANGUAGES CXX)
+
+   set(CMAKE_CXX_STANDARD 23)
+   set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+   # Put the app and Elegance's library in one folder, so the app finds it.
+   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+   add_subdirectory(external/elegance)
+
+   add_executable(my_app main.cpp)
+   target_link_libraries(my_app PRIVATE Elegance::Elegance)
+
+   if (MSVC)
+       target_compile_options(my_app PRIVATE /utf-8)
+   endif ()
+   ```
+
+3. Write `main.cpp`:
+
+   ```cpp title="main.cpp"
+   #include <elg/elegance.h>
+
+   using namespace elg;
+
+   int main() {
+       App app;
+       app.window({.title = "It works", .width = 400, .height = 300}, [] {
+           return Text("Hello from Elegance");
+       });
+       return app.run();
+   }
+   ```
+
+4. Configure and build. On Windows, run these from a **Developer Command Prompt** (CLion and
+   Visual Studio set up the compiler for you):
+
+   ```sh
+   cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+   cmake --build build
+   ```
+
+   The first configure builds Elegance's dependencies, which takes a while. Later ones reuse them.
+
+</Steps>
+
+<Aside type="tip">
+Compile with `/utf-8` on MSVC. Elegance's strings are UTF-8, and without the flag, string
+literals with characters like `"−"` or `"…"` are mangled by the source code page.
+</Aside>
+
+If the window doesn't open, run the app from a terminal: errors are printed there, and the log
+says which GPU Elegance picked.
 
 ## Build options
 
+Set these before `add_subdirectory`, or with `-D` when you configure:
+
 | Option | Default | What it does |
 | --- | --- | --- |
-| `ELG_BUILD_SHARED` | `ON` | Build Elegance as a DLL. `OFF` links it statically into each app. Hot reload needs `ON`. |
-| `ELG_BUILD_SANDBOX` | top level | The sandbox and, with a shared build, the hot reload preview app. |
-| `ELG_BUILD_TESTS` | top level | Unit tests (needs the vcpkg `tests` feature). |
-| `ELG_ICONS` | `ON` | Embed the Phosphor icon set (regular, bold, fill; about 1.4 MB). |
-| `ELG_ICONS_EXTRA_WEIGHTS` | `ON` | Also embed Phosphor's thin, light and duotone styles (about 1.6 MB). |
-| `ELG_ACCESSIBILITY` | `ON` | Screen reader support through AccessKit (downloads its prebuilt library). |
+| `ELG_BUILD_SHARED` | `ON` | Build Elegance as a shared library. `OFF` links it into your app; [hot reload](../../guides/hot-reload/) needs `ON`. |
+| `ELG_ICONS` | `ON` | Embed the Phosphor icon set (regular, bold, and fill; about 1.4 MB). |
+| `ELG_ICONS_EXTRA_WEIGHTS` | `ON` | Also embed Phosphor's thin, light, and duotone styles (about 1.6 MB). |
+| `ELG_ACCESSIBILITY` | `ON` | Screen reader support, through AccessKit. |
+| `ELG_BUILD_SANDBOX` | top level | Elegance's sandbox app and, in a shared build, the hot reload host. |
+| `ELG_BUILD_TESTS` | top level | Elegance's unit tests (needs the vcpkg `tests` feature). |
 
-## Use it in your project
+## Linking statically
 
-The quickest start is to copy an example from
-[elegance-examples](https://github.com/EleganceUI/elegance-examples), such as `hello-cpp`: each
-one is a complete project, which downloads Elegance when there's no checkout beside it. Or set it
-up yourself:
-
-Add Elegance as a subdirectory, for example as a git submodule, and link `Elegance::Elegance`:
-
-```cmake title="CMakeLists.txt"
-cmake_minimum_required(VERSION 4.3)
-project(MyApp LANGUAGES CXX)
-
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-add_subdirectory(external/elegance)
-
-add_executable(my_app main.cpp)
-target_link_libraries(my_app PRIVATE Elegance::Elegance)
-
-# Keep the app next to elegance.dll so Windows finds it.
-set_target_properties(my_app PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set_target_properties(elegance PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
-if (MSVC)
-    target_compile_options(my_app PRIVATE /utf-8)
-endif ()
-```
-
-### Linking statically
-
-Set `ELG_BUILD_SHARED` to `OFF` before adding Elegance, and the app ships without
-`elegance.dll`:
+Turn off `ELG_BUILD_SHARED` before adding Elegance, and it's linked into your app instead of
+shipping beside it:
 
 ```cmake title="CMakeLists.txt"
 set(ELG_BUILD_SHARED OFF CACHE BOOL "" FORCE)
-# Where Elegance copies the DirectX shader compiler (dxcompiler.dll, dxil.dll), which Direct3D 12
-# loads at run time. Without it, Direct3D 12 compiles shaders with the much slower FXC.
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_subdirectory(external/elegance)
 ```
 
-Its dependencies (SDL, Dawn, FreeType, HarfBuzz) stay DLLs with the `x64-windows` triplet, and
-vcpkg copies them next to the app. Hot reload needs the shared library: one Elegance for the host
-and its reloadable modules, so `elegance_hot_reload()` stops with an error in a static build.
+Its dependencies (SDL, Dawn, FreeType, HarfBuzz) are still shared libraries with vcpkg's default
+triplets, and they're copied next to your app.
 
-#### One executable
+### A single executable on Windows
 
-With vcpkg's `x64-windows-static` triplet (the `windows-release-fully-static` preset), the
-dependencies and the C runtime are static too (`/MT`), and an app needs nothing beside it but
-Windows. Elegance notices the triplet: it switches the build to the static runtime and builds
-itself static (a shared Elegance with its own runtime couldn't share `std` types with the app).
+With vcpkg's `x64-windows-static` triplet, the dependencies and the C runtime are static too, and
+the app needs nothing beside it but Windows. Elegance notices the triplet and builds itself static
+to match. An app comes to about 20 MB.
 
-```sh
-cmake --preset windows-release-fully-static   # the first time, vcpkg builds Dawn: allow ~30 minutes
-cmake --build build/windows-release-fully-static
-```
-
-The preset builds Release without debug info: with everything linked in, each app's PDB would
-carry all of Dawn's (about 700 MB). An app is about 20 MB. `dxcompiler.dll` and `dxil.dll` (the
-DirectX shader compiler, which Microsoft ships only as DLLs) are optional beside it: without them,
-Direct3D 12 compiles shaders with the older FXC, so the first frames take longer.
-
-vcpkg only reads the manifest of the top-level project, so your project needs Elegance's
+Because vcpkg reads only the top-level project's manifest, your project then lists Elegance's
 dependencies in its own `vcpkg.json`:
 
 ```json title="vcpkg.json"
@@ -173,28 +246,30 @@ dependencies in its own `vcpkg.json`:
 }
 ```
 
-Configure with vcpkg's toolchain file, as the presets do:
+and configures with vcpkg's toolchain and the triplet:
 
 ```sh
-cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+      -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake ^
+      -DVCPKG_TARGET_TRIPLET=x64-windows-static
 ```
 
-<Aside type="tip">
-Compile with `/utf-8` on MSVC. Elegance's strings are UTF-8, and without the flag string literals
-with non-ASCII characters (`"−"`, `"…"`) are mangled by the source code page.
-</Aside>
+`dxcompiler.dll` and `dxil.dll`, the DirectX shader compiler, are optional beside such an app.
+Without them Direct3D 12 compiles shaders with the older FXC, and the first frames take longer.
 
-## Check that it works
+## Working on Elegance itself
 
-```cpp title="main.cpp"
-#include <elg/elegance.h>
+To build Elegance's own sandbox and tests, clone it and use one of its CMake presets
+(`windows-debug`, `macos-debug`, `linux-debug`, and their `-release` versions):
 
-int main() {
-    elg::App app;
-    app.window({.title = "It works"}, [] { return elg::Text("Hello from Elegance"); });
-    return app.run();
-}
+```sh
+cmake --preset macos-debug
+cmake --build build/macos-debug
+./build/macos-debug/bin/sandbox
 ```
 
-If the window doesn't open, run the app from a terminal: errors are printed to stderr, and the
-log says which GPU was picked.
+The macOS presets target macOS 13.3, and build vcpkg's dependencies for the same version with the
+overlay triplet in `cmake/triplets/`. If a build warns that dependencies were built for a newer
+macOS, configure again with the preset: that rebuilds them.
+
+</Lang>

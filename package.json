@@ -1,21 +1,22 @@
 {
-  "name": "elegance-docs",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "reference": "node scripts/gen-reference.mjs && node scripts/gen-rust-reference.mjs",
-    "rust-json": "node scripts/rust-json.mjs",
-    "dev": "npm run reference && astro dev",
-    "build": "npm run reference && astro build",
-    "preview": "astro preview"
-  },
-  "dependencies": {
-    "@astrojs/markdown-remark": "7.3.5",
-    "@astrojs/starlight": "0.42.4",
-    "@fontsource-variable/inter": "5.3.0",
-    "@fontsource-variable/jetbrains-mono": "5.3.0",
-    "astro": "7.3.5",
-    "bun-serve": "^0.1.1",
-    "sharp": "0.35.5"
-  }
+	"name": "elegance-docs",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"reference": "node scripts/gen-reference.mjs && node scripts/gen-rust-reference.mjs",
+		"rust-json": "node scripts/rust-json.mjs",
+		"dev": "npm run reference && astro dev",
+		"build": "npm run reference && astro build",
+		"preview": "astro preview",
+		"check-rust": "node scripts/check-rust-samples.mjs"
+	},
+	"dependencies": {
+		"@astrojs/markdown-remark": "7.3.5",
+		"@astrojs/starlight": "0.42.4",
+		"@fontsource-variable/inter": "5.3.0",
+		"@fontsource-variable/jetbrains-mono": "5.3.0",
+		"astro": "7.3.5",
+		"bun-serve": "^0.1.1",
+		"sharp": "0.35.5"
+	}
 }

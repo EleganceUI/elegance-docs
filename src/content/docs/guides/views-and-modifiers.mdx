@@ -1,0 +1,238 @@
+---
+title: Views and modifiers
+description: "Build interfaces out of small views, adjust them with modifiers, and split them into reusable pieces."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+Everything you see in an Elegance window is a view. You build an interface by putting small views
+together into bigger ones, and you change how they look and behave with modifiers.
+
+## Putting views together
+
+Containers like `VStack` (top to bottom) and `HStack` (side by side) arrange the views you give
+them:
+
+```cpp
+VStack(Text("Title").font(Font::title),
+       HStack(Image("star"), Text("4.8")),
+       Button("Buy", buy));
+```
+
+```rust
+# let buy = || {};
+elg! {
+    VStack {
+        Text("Title").font(.title)
+        HStack {
+            Image("star")
+            Text("4.8")
+        }
+        Button("Buy", buy)
+    }
+}
+```
+
+<Lang only="cpp">
+
+A container's options come first, as a struct with named fields, before its children:
+
+```cpp
+VStack({.alignment = HorizontalAlignment::leading, .spacing = 4}, Text("Name"), Text("Detail"));
+```
+
+</Lang>
+
+<Lang only="rust">
+
+A container's options go in parentheses, by name, and its children in braces:
+
+```rust
+elg! {
+    VStack(alignment: .leading, spacing: 4) {
+        Text("Name")
+        Text("Detail")
+    }
+}
+```
+
+</Lang>
+
+These are the views Elegance comes with:
+
+| Kind | Views |
+| --- | --- |
+| Containers | `VStack`, `HStack`, `ZStack`, `LazyVStack`, `LazyHStack`, `VGrid`, `HGrid`, `Grid`, `ScrollView` |
+| Content | `Text`, `Image`, `Label`, `AsyncImage`, `VideoView`, `CameraView`, `Canvas` |
+| Shapes | `Rectangle`, `RoundedRectangle`, `Capsule`, `Circle`, `PathShape`, `CustomShape` |
+| Controls | `Button`, `Toggle`, `Checkbox`, `TextField`, `TextArea`, `Slider`, `NumberInput`, `Picker`, `Progress`, `MenuButton` |
+| Structure | `If`, `ForEach`, `Spacer`, `Separator`, `EmptyView` |
+| Navigation | `SplitView`, `NavigationSplitView`, `NavigationStack` |
+| Menus | `Menu`, `MenuItem`, `Submenu` |
+
+## Modifiers
+
+A modifier takes a view and gives back a new one with something changed or added: padding, a
+background, a font. Chain as many as you need:
+
+```cpp
+Text("Save")
+    .font(Font::headline)
+    .foreground_style(Color::white)
+    .padding(EdgeInsets::symmetric(16, 8))
+    .background(ThemeColor::accent, Capsule())
+    .shadow({.radius = 6, .y = 2});
+```
+
+```rust
+elg! {
+    Text("Save")
+        .font(.headline)
+        .foreground_style(.white)
+        .padding(horizontal: 16, vertical: 8)
+        .background_in(.accent, Capsule())
+        .shadow(radius: 6, y: 2)
+}
+```
+
+Each modifier wraps everything before it, so **order matters**. A background added after padding
+covers the padding; one added before it doesn't. A frame added before a background sizes the
+background too. When a result surprises you, read the chain from the top down and picture each
+step wrapping the one before.
+
+<Lang only="rust">
+
+In `elg!`, named arguments on a modifier are its options: `.shadow(radius: 6, y: 2)` is
+`.shadow_with(|o| o.radius(6).y(2))`. Outside `elg!`, call the `_with` method yourself.
+
+</Lang>
+
+Here's what's available, by what it does. The [reference](../../reference/) has every modifier
+with its exact parameters.
+
+| Group | Modifiers |
+| --- | --- |
+| Layout | `padding`, `frame`, `fixed_size`, `aspect_ratio`, `resizable`, `layout_priority`, `z_index`, `offset` |
+| Decoration | `background`, `overlay`, `border`, `shadow`, `inner_shadow` |
+| Effects | `opacity`, `clipped`, `clip_shape`, `corner_radius`, `mask`, `blur`, `backdrop_blur`, `rotation_effect`, `scale_effect`, `grayscale`, `saturation`, `blend_mode`, and more color effects |
+| Interaction | `on_click`, `on_double_click`, `on_activate`, `on_hover_change`, `on_pointer_enter`, `on_pointer_leave`, `on_key_press`, `on_scroll`, `on_drop`, `recognize`, `on_drag`, `on_long_press`, `focusable`, `focused`, `disabled`, `content_shape`, `allows_hit_testing`, `window_drag_area` |
+| Popups | `popover`, `tooltip`, `help`, `context_menu`, `floating` |
+| Environment | `font`, `font_weight`, `foreground_style`, `tint`, `color_scheme`, `theme`, `button_style`, `toggle_style`, `text_field_style`, and the other styles |
+| Animation | `animation`, `transition`, `animates_layout` |
+| Lifecycle | `on_appear`, `on_disappear` <Lang only="rust" inline>(C++ only for now)</Lang> |
+| Accessibility | `accessibility_label`, `accessibility_value`, `accessibility_hint`, `accessibility_hidden`, `accessibility_role`, `accessibility_action` |
+
+### Text and shapes have their own
+
+`Text` and the shapes have a few modifiers of their own, such as `.bold()` on text and `.fill()`
+on a shape. They return the same kind of view, so you use them first, before the general ones:
+
+```cpp
+Text("Hello").font(Font::title).bold().line_limit(1).padding(8);
+Circle().fill(ThemeColor::accent).stroke(Color::white, 2).frame(40, 40);
+```
+
+```rust
+Text("Hello").font(.title).bold().line_limit(1).padding(8)
+Circle().fill(.accent).stroke(.white, 2).frame(40, 40)
+```
+
+After `.padding(8)`, the result is a general view, so `.bold()` is no longer there to call.
+
+## Values that change
+
+Almost any argument can be a fixed value or something that changes over time: a state, a binding,
+a computed value, or a closure that works one out. Elegance keeps the view up to date with it.
+
+```cpp
+.opacity(0.5f)                                   // fixed
+.opacity(fade)                                   // a State<float>
+.opacity([=] { return hovered() ? 1.f : 0.6f; }) // worked out from state
+.foreground_style(ThemeColor::secondary)         // looked up in the theme, where the view is
+```
+
+```rust
+.opacity(0.5)                                          // fixed
+.opacity(fade)                                         // a State<f32>
+.opacity(move || if hovered.get() { 1.0 } else { 0.6 }) // worked out from state
+.foreground_style(.secondary)                          // looked up in the theme, where the view is
+```
+
+Only that one property of that one view updates when the state changes.
+[State and data flow](../state/) explains how.
+
+## Splitting up a big view
+
+When a view gets long, pull pieces out. The simplest way is a function that returns a view:
+
+```cpp
+View Avatar(Color color) {
+    return Circle().fill(color).frame(40, 40);
+}
+
+View Row(std::string name, Color color) {
+    return HStack(Avatar(color), Text(std::move(name)), Spacer());
+}
+```
+
+```rust
+fn avatar(color: Color) -> View {
+    elg! { Circle().fill(color).frame(40, 40) }
+}
+
+#[component]
+fn Row(name: String, color: Color) -> impl IntoView {
+    elg! {
+        HStack {
+            { avatar(color) }
+            Text(name)
+            Spacer()
+        }
+    }
+}
+```
+
+<Lang only="cpp">
+
+A *component*, a struct with a `body()`, is used the same way, but its body runs where it's placed,
+so it can read the [environment](../environment/) there:
+
+```cpp
+struct Row {
+    std::string name;
+    View body() const { return HStack(Text(name), Spacer()); }
+};
+
+VStack(Row{"Ada"}, Row{"Grace"});
+```
+
+</Lang>
+
+<Lang only="rust">
+
+A *component*, a function marked `#[component]`, is used like a built-in view, with its parameters
+as named arguments: `Row(name: "Ada".into(), color: .red)`. Its body runs where it's placed, so
+it can read the [environment](../environment/) there.
+
+</Lang>
+
+To reuse a set of modifiers, write your own modifier. See
+[Components and modifiers](../custom-views/).
+
+### Applying a function in a chain
+
+`apply` passes the view to a function of yours, so a long chain can stay one chain:
+
+```cpp
+const auto card = [](View content) {
+    return content.padding(16).background(ThemeColor::surface, RoundedRectangle(12));
+};
+
+Text("Inside a card").apply(card).shadow();
+```
+
+```rust
+let card = |content: View| content.padding(16).background_in(ThemeColor::Surface, RoundedRectangle(12));
+
+elg! { Text("Inside a card").apply(card).shadow(Shadow::default()) }
+```

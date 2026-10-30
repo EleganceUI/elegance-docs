@@ -1,13 +1,19 @@
 ---
 title: Introduction
-description: "What Elegance is, what it's for, and how it compares to other ways of building desktop UI."
+description: "What Elegance is, who it's for, and what building an app with it looks like."
 ---
 
-import { Aside, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+import Lang from '../../../components/Lang.astro';
 
-Elegance is a C++23 framework for building desktop app interfaces. You describe the UI as a tree
-of views, style them with chained modifiers, and connect them to reactive state. A WebGPU renderer
-draws the result.
+Elegance is a framework for building desktop app interfaces. You describe what the screen should
+show as a tree of small views, adjust them with modifiers, and connect them to state. When the
+state changes, Elegance updates exactly the parts of the screen that depend on it, and a GPU
+renderer draws the result.
+
+You can write Elegance apps in **C++23** or **Rust**. Both use the same views, modifiers, and
+ideas, so everything in these docs applies to either; the switch at the top of the sidebar picks
+which language the samples are in.
 
 ```cpp
 #include <elg/elegance.h>
@@ -24,24 +30,44 @@ int main() {
 }
 ```
 
+```rust
+use elegance::prelude::*;
+
+#[component]
+fn Hello() -> impl IntoView {
+    elg! {
+        VStack {
+            Image("hand-waving").font(Font::system(48.0, .regular))
+            Text("Hello, Elegance!").font(.title)
+        }
+    }
+}
+
+fn main() -> Result<std::process::ExitCode, Error> {
+    App::new().window(WindowDesc::new("Hello"), Hello).run()
+}
+```
+
 ## Why Elegance
 
-Building a modern-looking app is easiest in a browser, but the web platform brings a browser
-engine's memory use, startup time and runtime cost. Native toolkits are lean but slow to author.
-Elegance aims to sit in between:
+The easiest way to build a good-looking desktop app today is to ship a web page inside a browser
+engine, and pay for it in memory, startup time, and battery. Classic native toolkits are lean but
+slow to work with. Elegance aims for the best of both:
 
-- **Fast to author.** Building a UI feels like SwiftUI: compose views, chain modifiers, and keep
-  appearance next to structure. There's no markup language and no scripting layer; the UI is C++.
-- **Stateful by design.** Reactive state is built into the core. Changing a value updates exactly
-  the properties that read it.
-- **Lean.** Startup in well under a second, near-zero CPU while idle, and memory in tens of
-  megabytes.
-- **Complete.** Text editing, lists, menus, animation, themes, media, images from the web, desktop
-  integration, accessibility and developer tools come in the box.
+- **Pleasant to write.** You compose views and chain modifiers, the way SwiftUI does it. Layout,
+  appearance, and behavior sit together in ordinary code: there's no markup language to learn and
+  no scripting layer in between.
+- **Reactive at the core.** State is a first-class value. Change it, and the text, color, or list
+  that reads it updates by itself. Nothing is diffed and nothing else is rebuilt.
+- **Light.** Apps start in well under a second, use no CPU while idle, and fit in tens of
+  megabytes of memory.
+- **Complete.** Text editing, lazy lists, grids, menus, popovers, animation, themes, images,
+  audio, video, the camera, desktop integration, accessibility, and hot reload are built in.
 
 ## What it looks like
 
-A view is a value. Functions return views, and modifiers return new views:
+A view is a value. You build bigger views out of smaller ones, and modifiers return new views, so
+they chain:
 
 ```cpp
 View ProfileBadge(std::string name) {
@@ -52,27 +78,61 @@ View ProfileBadge(std::string name) {
 }
 ```
 
-State is a handle you capture by value. Reading it inside a closure subscribes the closure:
+```rust
+#[component]
+fn ProfileBadge(name: String) -> impl IntoView {
+    elg! {
+        HStack {
+            Circle().fill(.accent).frame(32, 32)
+            Text(name).font(.headline)
+        }
+        .padding(12)
+        .background_in(.surface, RoundedRectangle(12))
+    }
+}
+```
+
+State is a small handle you can copy into closures. Reading it inside a closure subscribes that
+closure to it, so the closure runs again whenever the value changes:
 
 ```cpp
 const State<bool> on(false);
-Toggle("Notifications", on);
-Text([=] { return on() ? "You'll be notified" : "Muted"; });
+
+VStack(Toggle("Notifications", on),
+       Text([=] { return on() ? "You'll be notified" : "Muted"; }));
 ```
 
-## Platform support
+```rust
+let on = State::new(false);
 
-<Aside type="note">
-Elegance is young. It's developed and tested on **Windows 10 and 11** (x64, MSVC). The renderer
-(SDL3 and WebGPU, through Dawn) is cross-platform, and Linux (Vulkan) and macOS (Metal) are planned. Some
-backends, such as video, camera capture, file dialogs and notifications, are Windows-only for now.
-</Aside>
+elg! {
+    VStack {
+        Toggle("Notifications", on)
+        Text(move || if on.get() { "You'll be notified" } else { "Muted" })
+    }
+}
+```
+
+<Lang only="rust">
+
+The Rust API is a thin, safe layer over the same library. `elg!` is a macro that turns the
+layout-shaped syntax above into ordinary builder calls, so anything you can write in it you can
+also write by hand.
+
+</Lang>
+
+## Platforms
+
+Elegance runs on **Windows 10 and 11**, **macOS 13.3 or later**, and **Linux** with X11 or
+Wayland. It draws with WebGPU (through Google's Dawn), which uses Direct3D 12 on Windows, Metal on
+macOS, and Vulkan on Linux. System features such as notifications, file dialogs, the camera, and
+video playback use each platform's own services.
 
 ## Where to go next
 
 <CardGrid>
-	<LinkCard title="Installation" href="../installation/" description="Build Elegance and add it to your project." />
-	<LinkCard title="Your first app" href="../first-app/" description="Build a small app step by step." />
-	<LinkCard title="Thinking in Elegance" href="../concepts/" description="Views, modifiers, state, and the environment." />
-	<LinkCard title="Examples" href="../../examples/" description="Small apps in C++ and Rust, with screenshots and source." />
+	<LinkCard title="Installation" href="../installation/" description="Set up a project in C++ or Rust." />
+	<LinkCard title="Your first app" href="../first-app/" description="Build a to-do list, one step at a time." />
+	<LinkCard title="Thinking in Elegance" href="../concepts/" description="The few ideas everything else is built from." />
+	<LinkCard title="Examples" href="../../examples/" description="Complete small apps, with screenshots and source." />
 </CardGrid>

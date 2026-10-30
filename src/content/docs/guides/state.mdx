@@ -1,83 +1,125 @@
 ---
 title: State and data flow
-description: "State, Binding, Computed, effects, batches - and how changes reach the screen."
+description: "Keep data in state, edit it through bindings, derive values from it, and react to changes."
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 import Example from '../../../components/Example.astro';
+import Lang from '../../../components/Lang.astro';
 
-Elegance's reactivity is *fine-grained*: instead of rebuilding a view when its data changes, it
-re-runs only the small closures that read the data. This page covers the tools: `State`,
-`Binding`, `Computed`, `effect`, `batch` and `untrack`.
+When something in your app changes, like a counter going up or a to-do being checked off, the
+screen has to follow. In Elegance you don't update views yourself. You keep the data in *state*,
+and the views that show it update on their own.
+
+This page covers the pieces: `State` for values that change, `Binding` for editing a value that
+lives somewhere else, `Computed` for values worked out from others, and `effect` for reacting to
+changes outside the UI.
 
 <Example name="counter" />
 
 ## State
 
-`State<T>` holds a mutable value. It's a handle to shared storage, so copies refer to the same
-value. Capture states **by value** in closures:
+A state holds a value that can change. It's a small handle: copies of it refer to the same value,
+so you can hand it to as many closures as you need.
 
 ```cpp
 const State<int> count(0);
-const State<std::string> name;                        // T{} by default
+const State<std::string> name;                    // starts as std::string{}
 const State<std::vector<Todo>> todos(std::vector<Todo>{});
 
-count();          // read (subscribes the running closure)
-count.get();      // the same
-count.peek();     // read without subscribing
-count = 5;        // write
-count += 1;       // also -=
-count.set(5);
-todos.update([](std::vector<Todo>& list) { list.push_back({}); }); // change in place
+count();          // read it (and subscribe, see below)
+count.peek();     // read it without subscribing
+count = 5;        // write it
+count += 1;       // and -=
+todos.update([](std::vector<Todo>& list) { list.push_back({}); }); // change it in place
 ```
 
-Writing a value equal to the current one does nothing (for types with `==`). `update` always
-notifies, since it can't tell what changed.
+```rust
+# #[derive(Clone, Default, PartialEq)] struct Todo { title: String }
+let mut count = State::new(0);
+let name = State::new(String::new());
+let todos = State::new(Vec::<Todo>::new());
+
+count.get();                      // read it (and subscribe, see below); also read() and with(|v| ..)
+count.peek();                     // read it without subscribing
+count.set(5);                     // write it
+count += 1;                       // and -=
+todos.write().push(Todo::default()); // change it in place; notifies when the guard drops
+todos.update(|list| list.clear()); // the same, as a closure
+```
+
+Writing the value a state already has does nothing. Changing it in place always counts as a
+change, since Elegance can't tell what you did to it.
 
 <Aside type="caution">
-State belongs to the UI thread. Reading or writing it from another thread throws
-`elg::UsageError`. Work on other threads should hand its results back with `post_to_ui_thread`, as
-in [Networking](../networking/).
+State belongs to the UI thread.
+<Lang only="cpp" inline>Using it from another thread throws `elg::UsageError`.</Lang>
+<Lang only="rust" inline>Its handles aren't `Send`, so the compiler won't let another thread have one.</Lang>
+To finish work done on another thread, hand the result back with `post_to_ui_thread`, as in
+[Networking](../networking/).
 </Aside>
 
-## Reading state reactively
+## How views follow state
 
-A read subscribes whatever closure is running at the time. These closures run reactively:
+When Elegance runs a closure you gave it and the closure reads a state, Elegance remembers. When
+that state changes, the closure runs again, and only the thing it controls updates: one text, one
+color, one frame.
 
-- **Reactive arguments**: closures passed where a `Prop<T>` is expected, such as `Text(...)`,
-  `.opacity(...)`, `.foreground_style(...)`, `.disabled(...)` or `If(...)`.
-- **Computed values** and **effects**.
-- The items closure of a `ForEach`.
+These closures follow state:
 
-When a state changes, the closures that read it run again, once, before the next frame. A closure
-that reads several states runs once even if they all changed.
+- Closures passed as a view's arguments: the content of a `Text`, `.opacity(...)`,
+  `.foreground_style(...)`, `.disabled(...)`, an `If` condition, and so on.
+- Computed values and effects (below).
+- The list a `ForEach` shows.
 
 ```cpp
 Text([=] { return std::format("{} of {}", done(), total()); })
 ```
 
-Everything else runs once: the function that builds a view, a component's `body()`, a style's
-`make_body`. A read there gets the current value and doesn't subscribe:
-
-```cpp
-Text(std::format("{}", count()));         // reads once: never updates
-Text([=] { return std::format("{}", count()); }); // follows count
+```rust
+# let (done, total) = (State::new(1), State::new(3));
+Text(move || format!("{} of {}", done.get(), total.get()))
+Text("{done} of {total}") // the same, as interpolated text
 ```
 
-### Passing state as a reactive argument
+Changes are collected and applied before the next frame, so a closure that reads three states runs
+once even if all three changed.
 
-A `State<T>` can be passed directly where a `Prop<T>` is expected:
+Everything else runs only once: your view functions, a component's body, a style's body. Reading
+a state there gets its current value and nothing more:
 
 ```cpp
-const State<float> volume(0.8f);
-Progress(volume);
-If(show_details, Details());
+Text(std::format("{}", count()));                  // shows the count at the time; never updates
+Text([=] { return std::format("{}", count()); });  // follows the count
+```
+
+```rust
+# let count = State::new(0);
+Text(count.get().to_string())          // shows the count at the time; never updates
+Text(move || count.get().to_string())  // follows the count
+```
+
+You can also pass a state itself wherever a value is expected, and the view follows it:
+
+```cpp
+const State<std::string> name("Ada");
+const State<float> fade(1.f);
+
+Text(name).opacity(fade);
+```
+
+```rust
+let name = State::new("Ada".to_string());
+let fade = State::new(1.0_f32);
+
+elg! { Text(name).opacity(fade) }
 ```
 
 ## Binding
 
-A `Binding<T>` reads and writes a value owned elsewhere. Controls that edit a value take one, and
-child components take bindings so they can change their parent's state:
+A binding reads and writes a value that lives somewhere else. Controls that change a value, such
+as text fields, toggles, and sliders, take one, and so do your own components when they need to
+change their parent's state:
 
 ```cpp
 View VolumeControl(Binding<float> volume) {
@@ -85,54 +127,94 @@ View VolumeControl(Binding<float> volume) {
 }
 
 const State<float> volume(0.5f);
-VolumeControl(volume);           // a State converts to a Binding
-VolumeControl(volume.binding()); // the same, spelled out
+VolumeControl(volume); // a State turns into a Binding
 ```
 
-Make one from a getter and a setter to bind to part of a value, or to convert:
+```rust
+#[component]
+fn VolumeControl(volume: Binding<f32>) -> impl IntoView {
+    elg! {
+        HStack {
+            Image("speaker-high")
+            Slider(volume)
+        }
+    }
+}
+
+let volume = State::new(0.5_f32);
+elg! { VolumeControl(volume: volume.binding()) }
+```
+
+You can make a binding from a pair of functions, to edit part of a value or to convert between
+units:
 
 ```cpp
 const Binding<bool> done(
     [=] { return todos()[index].done; },
     [=](bool value) { todos.update([&](auto& list) { list[index].done = value; }); });
 
-Binding<float> percent([=] { return volume() * 100; }, [=](float p) { volume = p / 100; });
+const Binding<float> percent([=] { return volume() * 100; }, [=](float p) { volume = p / 100; });
 ```
 
-`constant(value)` makes a binding that ignores writes, for a control that should show a fixed
-value (and in previews): `Toggle("Always on", constant(true))`. It's never implicit, so passing a
-plain value where a control edits one doesn't compile instead of quietly ignoring edits.
+```rust
+# #[derive(Clone, PartialEq)] struct Todo { done: bool }
+# let todos = State::new(vec![Todo { done: false }]);
+# let index = 0;
+# let volume = State::new(0.5_f32);
+let done = Binding::new(
+    move || todos.read()[index].done,
+    move |value| todos.write()[index].done = value,
+);
 
-## Prop or Binding
+let percent = Binding::new(move || volume.get() * 100.0, move |p| volume.set(p / 100.0));
+```
 
-Elegance's API follows one rule:
+A *constant* binding shows a fixed value and ignores changes, which is useful in previews:
+<Lang only="cpp" inline>`Toggle("Always on", constant(true))`</Lang><Lang only="rust" inline>`Toggle("Always on", constant(true))`</Lang>.
+Elegance never makes one for you, so if you pass a plain value to a control that edits it, you get
+a compile error instead of a control that silently ignores the user.
 
-- An argument a view only **reads** is a `Prop<T>`: a plain value, a `State`, a `Binding`, a
-  `Computed`, or a closure. `.opacity(0.5f)`, `.opacity(fade)` and
-  `.opacity([=] { return hovered() ? 1.f : 0.6f; })` all work, and so do option fields like
-  `{.destructive = true}` and `ScrollView({.sticks_to_end = following})`.
-- An argument a view **writes** is a `Binding<T>`: the text of a `TextField`, a `Toggle`'s value,
-  a `Slider`'s value, `.popover(is_presented, ...)`.
+## Read-only or two-way
 
-Your own components and styles should take arguments the same way:
+Every argument in Elegance follows one rule, and your own components should too:
+
+- If a view only **reads** an argument, it takes anything that produces a value: a plain value, a
+  state, a binding, a computed value, or a closure. In C++ that's a `Prop<T>`, and in Rust an
+  `impl IntoProp<T>` (or a `Prop<T>` prop on a component).
+- If a view **changes** an argument, it takes a binding: a text field's text, a toggle's value,
+  whether a popover is open.
 
 ```cpp
-View SidebarItem(std::string title, Prop<bool> selected, std::function<void()> action);
+View SidebarItem(std::string title, Prop<bool> selected);
 
-SidebarItem("Inbox", true, open_inbox);
-SidebarItem("Inbox", [=] { return page() == Page::inbox; }, open_inbox);
+SidebarItem("Inbox", true);
+SidebarItem("Inbox", [=] { return page() == Page::inbox; });
 ```
 
-Read a `Prop` with `get()`, or `get(env)` inside a closure that takes the environment (a prop can
-depend on it, like a `ThemeColor`).
+```rust
+#[component]
+fn SidebarItem(title: String, selected: Prop<bool>) -> impl IntoView {
+    // ...
+#   elg! { Text(title) }
+}
 
-Layout structure — a stack's spacing and alignment, a scroll view's axes — is plain values.
+# #[derive(Clone, Copy, PartialEq)] enum Page { Inbox }
+# let page = State::new(Page::Inbox);
+elg! {
+    VStack {
+        SidebarItem(title: "Inbox", selected: true)
+        SidebarItem(title: "Inbox", selected: move || page.get() == Page::Inbox)
+    }
+}
+```
+
+The shape of a layout, like a stack's spacing or a scroll view's direction, is a plain value.
 
 ## Computed
 
-A `Computed<T>` is a value derived from state. It's recalculated lazily: only when read, and only
-if something it depends on changed. If the new value equals the old one, closures reading it
-don't run again.
+A computed value is worked out from state, and kept up to date. It's only recalculated when
+something reads it and something it depends on has changed since. If it comes out the same as
+before, nothing that reads it runs again.
 
 ```cpp
 const auto visible = computed([=] {
@@ -144,22 +226,43 @@ const auto remaining = computed([=] { return std::ranges::count(todos(), false, 
 Text([=] { return std::format("{} left", remaining()); });
 ```
 
+```rust
+# #[derive(Clone, PartialEq)] struct Todo { done: bool }
+# let todos = State::new(Vec::<Todo>::new());
+# let show_done = State::new(true);
+let visible = computed(move || {
+    todos.read().iter().filter(|t| show_done.get() || !t.done).cloned().collect::<Vec<_>>()
+});
+let remaining = todos.map(|list| list.iter().filter(|t| !t.done).count());
+
+elg! { Text("{remaining} left") }
+```
+
+<Lang only="rust">`state.map(f)` is a shorthand for a computed value that depends on one state.</Lang>
+
 ## Effects
 
-An `effect` runs a function now and again whenever the state it read changes. Use it to sync
-state with something outside the UI: saving a file, updating the title, starting a request.
+An effect runs a function right away, and again whenever a state it read changes. Use one to keep
+something outside the interface in step with your state: a settings file, the window title, a
+request.
 
 ```cpp
 effect([=] { save_settings(theme(), font_size()); });
 ```
 
-Create effects while building views. They end when those views are removed, so they never outlive
-the UI that created them.
+```rust
+# fn save_settings(theme: String, size: f32) {}
+# let (theme, font_size) = (State::new(String::new()), State::new(13.0_f32));
+effect(move || save_settings(theme.get(), font_size.get()));
+```
 
-## Batching and untracked reads
+Make effects while building views. They stop when those views are removed, so they never outlive
+the part of the interface that made them.
 
-Writes are already batched per event: the closures they affect run once, before the next frame.
-`batch` groups writes made somewhere else, such as in a callback from a background API:
+## Several changes at once, and reads that don't subscribe
+
+Changes made while handling an event are already grouped. Outside of one, such as in a callback
+from another library, `batch` groups them, so views update once:
 
 ```cpp
 batch([&] {
@@ -168,20 +271,34 @@ batch([&] {
 });
 ```
 
-`untrack` reads state inside a reactive closure without subscribing to it:
+```rust
+# let (first_name, last_name) = (State::new(String::new()), State::new(String::new()));
+batch(|| {
+    first_name.set("Ada".into());
+    last_name.set("Lovelace".into());
+});
+```
+
+`untrack` reads state inside a reactive closure without subscribing to it, so that state changing
+doesn't make the closure run again:
 
 ```cpp
 Text([=] { return std::format("{} (as of {})", value(), untrack([&] { return updated_at(); })); });
 ```
 
+```rust
+# let (value, updated_at) = (State::new(1), State::new(String::new()));
+Text(move || format!("{} (as of {})", value.get(), untrack(|| updated_at.get())))
+```
+
 ## Where to keep state
 
-- **In the view that uses it.** A `State` created in a view function lives as long as the closures
-  that capture it, which is as long as the views built there.
-- **Higher up, shared through bindings.** Create the state in a common parent and pass it, or a
-  `Binding`, to the children.
-- **In a model object.** Group related states in a struct of `State` members and pass it by value;
-  it's just a bundle of handles:
+- **In the view that uses it.** A state you create while building a view lives as long as that
+  view.
+- **In a parent, shared down.** When several views need the same state, create it in a view that
+  contains them all, and pass it (or a binding to it) down.
+- **In a model.** Group related states in a struct and pass that around. It's just a bundle of
+  handles, so it's cheap to copy:
 
   ```cpp
   struct Player {
@@ -191,7 +308,17 @@ Text([=] { return std::format("{} (as of {})", value(), untrack([&] { return upd
   };
   ```
 
-- **In the environment**, for values many views read. See [The environment](../environment/).
+  ```rust
+  #[derive(Clone, Copy)]
+  struct Player {
+      playing: State<bool>,
+      position: State<f64>,
+      volume: State<f32>,
+  }
+  ```
 
-Views built inside `If` and `ForEach` are destroyed when they're removed, including state created
-inside them. State that must survive should live outside.
+- **In the environment**, for values that many views far apart need. See
+  [The environment](../environment/).
+
+Views inside an `If` or a `ForEach` are thrown away when they're removed, along with any state
+they created. State that has to survive belongs outside them.

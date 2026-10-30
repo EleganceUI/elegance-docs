@@ -153,4 +153,4 @@ Text("OK").modifier(MinSize(44, 44));
 ```
 
 The built-in modifiers are written exactly this way; see the
-[modifier reference](../../reference/modifier/).
+[modifier reference](../../reference/cpp/modifier/).

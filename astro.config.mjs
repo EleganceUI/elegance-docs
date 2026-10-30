@@ -4,6 +4,7 @@
 
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import { eleganceDir, examplesDir, rustDir } from './scripts/paths.mjs';
 
 // Where the site is hosted. For GitHub Pages under a repository, set DOCS_SITE to
 // https://<user>.github.io and DOCS_BASE to /<repository> (the workflow in .github does).
@@ -13,8 +14,12 @@ const base = process.env.DOCS_BASE || '/';
 export default defineConfig({
 	site,
 	base,
-	// The examples' sources come from the elegance-examples checkout beside this repository.
-	vite: { server: { fs: { allow: ['..', '../../elegance-examples'] } } },
+	// The examples' sources come from the elegance-examples checkout (scripts/paths.mjs), reached
+	// as @examples.
+	vite: {
+		resolve: { alias: { '@examples': examplesDir } },
+		server: { fs: { allow: ['.', eleganceDir, examplesDir, rustDir] } },
+	},
 	integrations: [
 		starlight({
 			title: 'Elegance',
@@ -81,12 +86,15 @@ export default defineConfig({
 					],
 				},
 				{ label: 'Examples', slug: 'examples' },
-				{ label: 'API reference', collapsed: true, items: [{ autogenerate: { directory: 'reference' } }] },
+				{
+					label: 'API reference',
+					collapsed: true,
+					items: [
+						{ label: 'C++', collapsed: true, items: [{ autogenerate: { directory: 'reference/cpp' } }] },
+						{ label: 'Rust', collapsed: true, items: [{ autogenerate: { directory: 'reference/rust' } }] },
+					],
+				},
 			],
 		}),
 	],
-	vite: {
-		// The guides show the examples' sources from ../examples.
-		server: { fs: { allow: ['..'] } },
-	},
 });

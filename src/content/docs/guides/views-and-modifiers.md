@@ -63,7 +63,7 @@ The modifiers, grouped by what they do:
 | Accessibility | `accessibility_label`, `accessibility_value`, `accessibility_hint`, `accessibility_hidden`, `accessibility_role`, `accessibility_element`, `accessibility_action` |
 
 All of them are listed with their exact signatures in the
-[`<elg/view.h>` reference](../../reference/view/).
+[`<elg/view.h>` reference](../../reference/cpp/view/).
 
 ### Text and Shape modifiers
 

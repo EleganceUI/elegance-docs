@@ -291,4 +291,4 @@ For anything more, such as one handler that takes several kinds of events, write
 focus and text input events for its view, in window coordinates along with the view's frame;
 returning `{.consumed = true}` stops an event from bubbling further.
 
-See [`<elg/events.h>`](../../reference/events/) for every event type.
+See [`<elg/events.h>`](../../reference/cpp/events/) for every event type.

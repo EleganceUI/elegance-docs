@@ -127,4 +127,4 @@ set_default_icon_set("brand"); // names without a prefix now come from "brand"
 ```
 
 Sets can have several weights (`.weights`) and variants (`.variants`). See
-[`<elg/image.h>`](../../reference/image/) for the options.
+[`<elg/image.h>`](../../reference/cpp/image/) for the options.

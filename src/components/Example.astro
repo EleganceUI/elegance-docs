@@ -1,6 +1,5 @@
 ---
-// An example from the elegance-examples repository (<name>-cpp/main.cpp), checked out beside this
-// one: its screenshot and full source, read at build time so the page always shows the code that
+// An example from the elegance-examples repository (<name>-cpp/main.cpp; see scripts/paths.mjs): its screenshot and full source, read at build time so the page always shows the code that
 // compiles.
 //   <Example name="counter" />
 import { Code } from '@astrojs/starlight/components';
@@ -15,15 +14,17 @@ interface Props {
 
 const { name, collapsed = false } = Astro.props;
 
-const sources = import.meta.glob<string>('../../../../elegance-examples/*-cpp/main.cpp', { query: '?raw', import: 'default', eager: true });
+const sources = import.meta.glob<string>('@examples/*-cpp/main.cpp', { query: '?raw', import: 'default', eager: true });
 const shots = import.meta.glob<{ default: ImageMetadata }>('../assets/examples/*.png', { eager: true });
 
-const source = sources[`../../../../elegance-examples/${name}-cpp/main.cpp`];
+// Keyed by where each file resolved to: find it by its folder.
+const nameOf = (key: string) => key.match(/([^/]+)-cpp\/main\.cpp$/)![1];
+const source = Object.entries(sources).find(([key]) => nameOf(key) === name)?.[1];
 if (!source) {
-	const known = Object.keys(sources).map((key) => key.match(/([^/]+)-cpp\/main\.cpp$/)![1]);
+	const known = Object.keys(sources).map(nameOf);
 	throw new Error(
 		known.length === 0
-			? `Example "${name}" not found: check out elegance-examples beside elegance`
+			? `Example "${name}" not found: check out elegance-examples beside elegance-docs`
 			: `Example "${name}" not found in elegance-examples (has ${known.join(', ')})`,
 	);
 }

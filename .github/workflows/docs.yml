@@ -1,0 +1,87 @@
+# Builds the documentation site and publishes it with GitHub Pages. Enable Pages in the
+# repository settings with "GitHub Actions" as the source.
+#
+# The site is built from the latest Elegance (its public headers: the C++ reference),
+# elegance-examples (the examples' sources) and elegance-rs (rustdoc JSON: the Rust reference), so
+# it also rebuilds every day and on demand, not only when this repository changes. Those
+# repositories can rebuild it right away with a repository_dispatch of type "docs".
+name: Docs
+
+on:
+    push:
+        branches: [main]
+    schedule:
+        - cron: '17 4 * * *'
+    workflow_dispatch:
+    repository_dispatch:
+        types: [docs]
+
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+concurrency:
+    group: pages
+    cancel-in-progress: true
+
+env:
+    # rustdoc's JSON output changes between nightlies; scripts/gen-rust-reference.mjs reads the
+    # format this one writes (61).
+    RUST_TOOLCHAIN: nightly-2026-10-28
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: elegance-docs
+        steps:
+            # The sources the site is built from, beside this repository (scripts/paths.mjs).
+            - uses: actions/checkout@v7
+              with:
+                  path: elegance-docs
+            - uses: actions/checkout@v7
+              with:
+                  repository: ${{ github.repository_owner }}/elegance
+                  path: elegance
+            - uses: actions/checkout@v7
+              with:
+                  repository: ${{ github.repository_owner }}/elegance-examples
+                  path: elegance-examples
+            - uses: actions/checkout@v7
+              with:
+                  repository: ${{ github.repository_owner }}/elegance-rs
+                  path: elegance-rs
+            # The Rust reference: rustdoc's JSON for the elegance-rs crates. elegance-sys downloads
+            # Elegance's prebuilt library, so no C++ toolchain is needed.
+            - uses: dtolnay/rust-toolchain@master
+              with:
+                  toolchain: ${{ env.RUST_TOOLCHAIN }}
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: elegance-rs
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22
+                  cache: npm
+                  cache-dependency-path: elegance-docs/package-lock.json
+            - run: npm ci
+            - run: npm run rust-json
+            - run: npm run build
+              env:
+                  DOCS_SITE: https://${{ github.repository_owner }}.github.io
+                  DOCS_BASE: /${{ github.event.repository.name }}
+            - uses: actions/upload-pages-artifact@v5
+              with:
+                  path: elegance-docs/dist
+
+    deploy:
+        needs: build
+        runs-on: ubuntu-latest
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - id: deployment
+              uses: actions/deploy-pages@v5

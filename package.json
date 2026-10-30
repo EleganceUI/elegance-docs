@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "reference": "node scripts/gen-reference.mjs",
+    "reference": "node scripts/gen-reference.mjs && node scripts/gen-rust-reference.mjs",
+    "rust-json": "node scripts/rust-json.mjs",
     "dev": "npm run reference && astro dev",
     "build": "npm run reference && astro build",
     "preview": "astro preview"

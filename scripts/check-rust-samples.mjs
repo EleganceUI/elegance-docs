@@ -64,7 +64,7 @@ function shape(body) {
 	const text = code.join('\n');
 	if (/\bfn main\s*\(/.test(text)) return 'program';
 	const first = code[0].trim();
-	if (!/elg!/.test(text) && ((/^[A-Z]\w*\s*[({]/.test(first) && !/^[A-Z]\w*::/.test(first)) || /^(if|match)\b.*\{$/.test(first))) return 'dsl';
+	if (!/^elg!/.test(first) && ((/^[A-Z]\w*\s*[({]/.test(first) && !/^[A-Z]\w*::/.test(first)) || /^(if|match)\b.*\{$/.test(first))) return 'dsl';
 	return 'body';
 }
 

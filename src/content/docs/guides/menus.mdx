@@ -15,6 +15,22 @@ Menu(MenuItem("Rename", rename, {.shortcut = "F2"}),
      MenuItem("Delete", remove, {.destructive = true}));
 ```
 
+```rust
+# let (rename, duplicate, archive, trash, remove) = (|| {}, || {}, || {}, || {}, || {});
+Menu {
+    MenuItem("Rename", rename, shortcut: "F2")
+    MenuItem("Duplicate", duplicate, image: "copy")
+    Submenu("Move to", move || elg! {
+        Menu {
+            MenuItem("Archive", archive)
+            MenuItem("Trash", trash)
+        }
+    })
+    Separator()
+    MenuItem("Delete", remove, destructive: true)
+}
+```
+
 Choosing an item closes the menu, then runs its action. Items can show a shortcut hint, an icon, a
 check mark (`.checked`, reactive), or the danger color (`.destructive`). Disable an item with
 `.disabled(...)`.
@@ -36,6 +52,19 @@ Text(file.name).context_menu([=] {
 });
 ```
 
+```rust
+# let (open, toggle_pin, remove) = (|| {}, || {}, || {});
+# let pinned = State::new(false);
+Text("notes.txt").context_menu(move || elg! {
+    Menu {
+        MenuItem("Open", open)
+        MenuItem("Pin", toggle_pin, checked: pinned)
+        Separator()
+        MenuItem("Delete", remove, destructive: true)
+    }
+})
+```
+
 ## Menu buttons
 
 A `MenuButton` opens a menu below itself:
@@ -47,12 +76,28 @@ MenuButton(Label("Sort", {.system_name = "sort-ascending"}), [=] {
 });
 ```
 
+```rust
+# #[derive(Clone, Copy, PartialEq)] enum Sort { Name, Date }
+# let sort = State::new(Sort::Name);
+MenuButton(Label("Sort", "sort-ascending"), move || elg! {
+    Menu {
+        MenuItem("Name", move || sort.set(Sort::Name), checked: move || sort.get() == Sort::Name)
+        MenuItem("Date", move || sort.set(Sort::Date), checked: move || sort.get() == Sort::Date)
+    }
+})
+```
+
 Its options place the menu like [floating content](#floating-content) (above a button near the
 bottom of the window, say), hide the chevron, or give it its own motion:
 
 ```cpp
 MenuButton("Attach", attach_menu, {.placement = {.edge = FloatingEdge::top, .spacing = 4},
                                    .shows_indicator = false});
+```
+
+```rust
+# let attach_menu = || elg! { Menu { MenuItem("File", || {}) } };
+MenuButton("Attach", attach_menu, edge: .top, shows_indicator: false)
 ```
 
 For choosing one value from a list, `Picker` with `MenuPickerStyle` does this for you; see
@@ -72,6 +117,21 @@ Button("Edit…", [=] { editing = true; })
                       Button("Done", [=] { editing = false; }))
             .frame({.width = 240});
     });
+```
+
+```rust
+# let name = State::new(String::new());
+let editing = State::new(false);
+
+elg! {
+    Button("Edit…", move || editing.set(true)).popover(editing, move || elg! {
+        VStack {
+            TextField("Name", name)
+            Button("Done", move || editing.set(false))
+        }
+        .frame(width: 240)
+    })
+}
 ```
 
 Setting the binding to false closes it. Clicking outside, pressing Esc, or switching to another app
@@ -95,6 +155,19 @@ Avatar(user).floating(card_shown.binding(), [=] { return ProfileCard(user); },
                                      .spacing = 8},
                        .boundary = FloatingBoundary::window,
                        .dismiss = {.outside_click = false}});
+```
+
+```rust
+# let card_shown = State::new(false);
+Text("Avatar").floating(
+    card_shown,
+    || elg! { Text("Profile card") },
+    |o| {
+        o.placement(|p| p.edge(FloatingEdge::Trailing).alignment(FloatingAlignment::Center).spacing(8))
+            .boundary(FloatingBoundary::Window)
+            .outside_click(false)
+    },
+)
 ```
 
 - `placement`: the `edge` of the view it opens on (flipping when there isn't room), its
@@ -122,6 +195,14 @@ HStack(MapView(pins)                    // pins show callouts with .boundary = F
        Inspector());
 ```
 
+```rust
+HStack {
+    Text("Map")   // pins show callouts with a container boundary
+        .floating_container()
+    Text("Inspector")
+}
+```
+
 The content is drawn above the container's content but under views outside it, placed (and
 flipped) within the container's bounds, clipped to it, and moved with it when it scrolls. Esc and
 presses outside it still close it from anywhere in the window. Without a marked container around
@@ -139,6 +220,19 @@ const PopupMotion grow(Transition::opacity().combined(Transition::scale(0.95f, A
 Button("Details", [=] { showing = true; }).popover(showing.binding(), details, {.motion = grow});
 ```
 
+```rust
+# let details = || elg! { Text("Details") };
+let showing = State::new(false);
+let grow = PopupMotion::new(
+    Transition::opacity().combined(Transition::scale_anchored(0.95, Alignment::TOP)),
+    Animation::ease_out(0.15),
+);
+
+elg! {
+    Button("Details", move || showing.set(true)).popover(showing, details, motion: grow.clone())
+}
+```
+
 `floating`, `popover` and `tooltip` take `.motion` in their options. Without one, popovers,
 tooltips and menus use their style's `motion()`, which a custom style can override to animate
 every popup it draws.
@@ -149,6 +243,20 @@ every popup it draws.
 Button(Image("gear"), settings).tooltip("Settings");
 Avatar(user).tooltip([=] { return HStack(Image("user"), Text(user.name)); },
                      {.placement = {.edge = FloatingEdge::trailing, .spacing = 6}, .delay = 0.3});
+```
+
+```rust
+# let settings = || {};
+Button(Image("gear"), settings).tooltip("Settings")
+Text("Avatar").tooltip_view(
+    || elg! {
+        HStack {
+            Image("user")
+            Text("Ada")
+        }
+    },
+    |o| o.placement(|p| p.edge(FloatingEdge::Trailing).spacing(6)).delay(0.3),
+)
 ```
 
 A tooltip appears after the pointer rests on the view for a moment (`delay`, 0.6 seconds by

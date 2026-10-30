@@ -1,0 +1,495 @@
+---
+title: Input, focus, and gestures
+description: "Respond to clicks, drags, pinches, hovering, and the keyboard; manage focus; and accept dropped files."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+Controls handle their own input. For everything else, like a card you can open, a canvas you draw
+on, or a photo you can pinch, attach a handler to any view with an event modifier.
+
+## Clicks
+
+`on_click` runs when the view is pressed and released. It can also tell you where the click was
+(in the view's own coordinates), which button, which modifier keys were held, and how many clicks
+in a row it was:
+
+```cpp
+Row().on_click(select).on_double_click(open);
+Canvas(draw).on_click([=](const ClickEvent& click) { add_point(click.location); });
+Item().on_click([=](const ClickEvent& click) { extend_selection(id, click.modifiers); });
+Tab().on_click(close_tab, {.button = MouseButton::middle});
+```
+
+```rust
+# let (select, open, close_tab) = (|| {}, || {}, || {});
+# fn add_point(p: Point) {}
+Text("Row").on_click(move |_| select()).on_double_click(move |_| open())
+Canvas(|_| {}).on_click(|click| add_point(click.location))
+Text("Tab").on_click(move |_| close_tab(), button: .middle)
+```
+
+When click handlers are inside each other, the innermost one wins. A double-click handler lets the
+first click through to a single-click handler around it.
+
+### Something that acts like a control
+
+A click comes only from the pointer. When a view *is* a control, like a tile that opens something
+or a switch you drew yourself, use `on_activate` instead. It runs on a click, on Space or Return
+while the view has focus, and when a screen reader activates it. It makes the view focusable, and
+`.disabled()` turns it off:
+
+```cpp
+AlbumTile(album).on_activate([=] { open(album); }).accessibility_label(album.title);
+```
+
+```rust
+# let open = || {};
+Text("Album").on_activate(open).accessibility_label("Blue Train")
+```
+
+Give it a role and a label too, so screen readers can describe it; see
+[Accessibility](../accessibility/).
+
+## Dragging and long presses
+
+`recognize` attaches a gesture. You build the gesture up with the callbacks it needs:
+
+```cpp
+const State<Point> offset;
+const State<Point> start;
+
+Card()
+    .offset([=] { return offset().x; }, [=] { return offset().y; })
+    .recognize(DragGesture({.minimum_distance = 8})
+                   .on_began([=] { start = offset.peek(); })
+                   .on_changed([=](const DragEvent& e) {
+                       offset = Point{start().x + e.translation.x, start().y + e.translation.y};
+                   })
+                   .on_ended([=](const DragEvent& e) { settle(e.velocity); }))
+    .on_click(open);
+
+Thumbnail(photo).recognize(
+    LongPressGesture(show_details, {.duration = 0.4, .pressing = [=](bool held) { pressed = held; }}));
+```
+
+```rust
+# let (open, show_details) = (|| {}, || {});
+# fn settle(velocity: Point) {}
+# let pressed = State::new(false);
+let offset = State::new(Point::new(0.0, 0.0));
+let start = State::new(Point::new(0.0, 0.0));
+
+elg! {
+    VStack {
+        Text("Card")
+            .offset(move || offset.get().x, move || offset.get().y)
+            .recognize(
+                DragGesture::with(|o| o.minimum_distance(8))
+                    .on_began(move |_| start.set(*offset.peek()))
+                    .on_changed(move |e| {
+                        offset.set(Point::new(start.get().x + e.translation.x, start.get().y + e.translation.y))
+                    })
+                    .on_ended(|e| settle(e.velocity)),
+            )
+            .on_click(move |_| open())
+
+        Text("Photo").recognize(
+            LongPressGesture::new(show_details).options(|o| o.duration(0.4).pressing(move |held| pressed.set(held))),
+        )
+    }
+}
+```
+
+A drag event tells you where the pointer is and where the press started, how far it's moved since,
+how fast it's going (in points per second), the button, and the modifier keys.
+
+A gesture watches presses without taking them. Once it *recognizes* one, because the pointer moved
+far enough or the press was held long enough, it takes the press over, and the button or click
+handler the press started on doesn't fire. So the card above opens on a click and moves on a drag.
+Controls that follow the pointer themselves, like sliders and text fields, keep their presses:
+dragging a slider inside a draggable card moves the slider, not the card.
+
+For the simple cases there are shorthands: `on_drag` for a drag that only needs `on_changed`, and
+`on_long_press` for a long press with just an action.
+
+### When gestures compete
+
+When several gestures could take a press, the innermost one that recognizes it wins. You can change
+that for a drag or a long press:
+
+```cpp
+// A row's swipe goes before the drags of what's in it, and before its sliders.
+Row(item).recognize(DragGesture().on_changed(swipe), {.priority = GesturePriority::high});
+
+// Follows the press alongside whatever has it, without cancelling anything.
+Card().recognize(DragGesture().on_changed(tilt), {.simultaneous = true});
+```
+
+```rust
+# fn swipe(e: &DragEvent) {}
+# fn tilt(e: &DragEvent) {}
+// A row's swipe goes before the drags of what's in it, and before its sliders.
+Text("Row").recognize(DragGesture::new().on_changed(swipe), priority: .high)
+
+// Follows the press alongside whatever has it, without cancelling anything.
+Text("Card").recognize(DragGesture::new().on_changed(tilt), simultaneous: true)
+```
+
+To pick something up by holding it first, as when reordering by touch, give the drag a hold time:
+
+```cpp
+Tile(photo).recognize(DragGesture({.hold = 0.4})
+                          .on_began([=] { lifted = true; })
+                          .on_changed([=](const DragEvent& e) { offset = e.translation; })
+                          .on_ended([=](const DragEvent&) { lifted = false; drop(); }));
+```
+
+```rust
+# let (lifted, offset) = (State::new(false), State::new(Point::new(0.0, 0.0)));
+# let drop = || {};
+Text("Tile").recognize(
+    DragGesture::with(|o| o.hold(0.4))
+        .on_began(move |_| lifted.set(true))
+        .on_changed(move |e| offset.set(e.translation))
+        .on_ended(move |_| {
+            lifted.set(false);
+            drop();
+        }),
+)
+```
+
+The press has to stay put for that long. Then the drag begins right away, before anything moves,
+so the tile can look lifted first. A press that moves sooner is left alone: a scroll view scrolls,
+and a click is still a click.
+
+### Trackpad gestures
+
+Pinching, turning two fingers, and double-tapping with two fingers go to the innermost view under
+the pointer that handles them:
+
+```cpp
+const State<float> zoom{1};
+const State<float> start{1};
+const State<float> angle{0};
+
+Photo()
+    .recognize(MagnifyGesture()
+                   .on_began([=] { start = zoom(); })
+                   .on_changed([=](const MagnifyEvent& e) { zoom = std::clamp(start() * e.scale, 0.5f, 8.f); }))
+    .on_rotate([=](const RotateEvent& e) { angle = e.degrees; })
+    .on_two_finger_double_tap([=](Point) { zoom = zoom() == 1 ? 2.f : 1.f; });
+```
+
+```rust
+let zoom = State::new(1.0_f32);
+let start = State::new(1.0_f32);
+let angle = State::new(0.0_f32);
+
+elg! {
+    Text("Photo")
+        .recognize(
+            MagnifyGesture::new()
+                .on_began(move |_| start.set(zoom.get()))
+                .on_changed(move |e| zoom.set((start.get() * e.scale).clamp(0.5, 8.0))),
+        )
+        .on_rotate(move |e| angle.set(e.degrees))
+        .on_two_finger_double_tap(move |_| zoom.set(if zoom.get() == 1.0 { 2.0 } else { 1.0 }))
+}
+```
+
+The scale and the angle are measured from where the gesture began. Rotating and two-finger double
+taps come from Mac trackpads; pinching also works on other platforms that report it.
+
+## Hover
+
+There are two ways to follow the pointer. `on_pointer_enter` and `on_pointer_leave` fire the moment
+the pointer crosses into or out of the view. Use them for highlights, which should match exactly
+what's under the pointer:
+
+```cpp
+const State<bool> hovered(false);
+
+Row()
+    .background([=] { return hovered() ? Color::hex(0x7AA2F7).opacity(0.1f) : Color::clear; })
+    .on_pointer_enter([=] { hovered = true; })
+    .on_pointer_leave([=] { hovered = false; });
+```
+
+```rust
+let hovered = State::new(false);
+
+elg! {
+    Text("Row")
+        .background(move || if hovered.get() { Color::hex(0x7AA2F7).opacity(0.1) } else { Color::CLEAR })
+        .on_pointer_enter(move || hovered.set(true))
+        .on_pointer_leave(move || hovered.set(false))
+}
+```
+
+`on_hover_change` tells you `true` when the pointer arrives and `false` when it leaves. Unlike the
+first two, it can wait a moment, so sweeping the pointer across a grid of tiles doesn't start a
+preview on every one. Set the delays with `.hover_delay`, for everything inside a view:
+
+```cpp
+Grid().hover_delay({.enter = 0.3, .exit = 0.2});
+Tile().on_hover_change(show_preview).hover_delay({.enter = 0.5});
+```
+
+```rust
+# fn show_preview(shown: bool) {}
+VStack { Text("Grid") }.hover_delay(HoverDelay::default().enter(0.3).exit(0.2))
+Text("Tile").on_hover_change(show_preview).hover_delay(HoverDelay::default().enter(0.5))
+```
+
+Controls' own highlights always follow the pointer at once. To show a tooltip when the pointer
+rests on a view, use `.tooltip("...")`; see [Menus and popups](../menus/).
+
+## The pointer's shape
+
+`.pointer_style()` sets the pointer's shape over a view, like CSS's `cursor`. The innermost view
+under the pointer that sets one decides; otherwise it's the arrow. Text fields and split view
+dividers already show the right shape.
+
+```cpp
+Card().on_activate(open).pointer_style(PointerStyle::pointer); // a hand: this opens something
+Canvas(draw).pointer_style(PointerStyle::crosshair);
+Content().pointer_style([=] { return busy() ? PointerStyle::progress : PointerStyle::automatic; });
+```
+
+```rust
+# let open = || {};
+# let busy = State::new(false);
+Text("Card").on_activate(open).pointer_style(.pointer) // a hand: this opens something
+Canvas(|_| {}).pointer_style(.crosshair)
+Text("Content").pointer_style(move || if busy.get() { PointerStyle::Progress } else { PointerStyle::Automatic })
+```
+
+## Where a view can be clicked
+
+A view takes clicks where it draws something: a shape inside its outline, text anywhere in its
+frame. Two modifiers change that:
+
+```cpp
+HStack(Image("star"), Spacer(), Text("Rate")).content_shape(Rectangle()).on_click(rate); // the gap counts too
+Overlay().allows_hit_testing(false); // clicks go through to what's behind
+```
+
+```rust
+# let rate = || {};
+HStack {
+    Image("star")
+    Spacer()
+    Text("Rate")
+}
+.content_shape(Rectangle())
+.on_click(move |_| rate()) // the gap counts too
+
+Text("Overlay").allows_hit_testing(false) // clicks go through to what's behind
+```
+
+## Turning views off
+
+`.disabled()` turns off everything inside a view that responds to input, not only controls:
+clicks, gestures, keys, typing, focus, context menus, and drops. A press on a disabled view goes to
+the views around it, as if it weren't there:
+
+```cpp
+Card(item).on_click(open).disabled([=] { return item.locked; });
+```
+
+```rust
+# let open = || {};
+# let locked = State::new(true);
+Text("Card").on_click(move |_| open()).disabled(locked)
+```
+
+Hovering still works, so a tooltip can explain why it's off, and so does scrolling, so a disabled
+form can still be read. If a view is turned off in the middle of a drag, the drag is cancelled, and
+if it had focus, focus moves on.
+
+## The keyboard
+
+Keys go to the focused view first, then to each view around it in turn, until one handles them:
+
+```cpp
+Editor().on_key_press(Key::escape, [=] { close(); });
+
+Canvas(draw).focusable().on_key([=](const KeyEvent& e) {
+    if (e.kind == KeyEvent::Kind::down && e.key == Key::s && has(e.modifiers, primary_modifier())) {
+        save();
+        return true;  // handled: stops here
+    }
+    return false;     // passed on
+});
+```
+
+```rust
+# let (close, save) = (|| {}, || {});
+Text("Editor").on_key_press(Key::Escape, close)
+
+Canvas(|_| {}).focusable(true).on_key(move |e| {
+    if e.kind == KeyEventKind::Down && e.key == Key::S && e.modifiers.has(KeyModifiers::primary()) {
+        save();
+        return true; // handled: stops here
+    }
+    false // passed on
+})
+```
+
+`on_key_press` runs when a key goes down; `on_key` sees it go down and up, and whether it's
+repeating. The *primary* modifier is Cmd on a Mac and Ctrl elsewhere, the one shortcuts use.
+
+Typed text is separate from keys. `on_text_input` receives what's typed into a view, including
+text an input method is still composing:
+
+```cpp
+Canvas(draw).on_text_input([=](const TextInputEvent& e) {
+    if (e.kind == TextInputEvent::Kind::commit) {
+        insert(e.text);
+    }
+    return true;
+});
+```
+
+```rust
+# fn insert(text: &str) {}
+Canvas(|_| {}).on_text_input(|e| {
+    if e.kind == TextInputKind::Commit {
+        insert(&e.text);
+    }
+    true
+})
+```
+
+## Focus
+
+Controls take keyboard focus when clicked, and Tab and Shift-Tab move through them in order, with a
+ring around the focused one. You can make other views focusable, or keep a part of the interface
+out of the Tab order:
+
+```cpp
+Canvas(draw).focusable();
+Toolbar().focusable(false); // its buttons never take focus
+```
+
+```rust
+Canvas(|_| {}).focusable(true)
+HStack { Text("Toolbar") }.focusable(false) // its buttons never take focus
+```
+
+To move focus from code, or to know where it is, bind it to a state:
+
+```cpp
+const State<bool> search_focused(false);
+
+TextField("Search", query).focused(search_focused);
+Button("Find", [=] { search_focused = true; });
+```
+
+```rust
+# let query = State::new(String::new());
+let search_focused = State::new(false);
+
+elg! {
+    VStack {
+        TextField("Search", query).focused(search_focused)
+        Button("Find", move || search_focused.set(true))
+    }
+}
+```
+
+When a view inside a scroll view gets focus, the scroll view brings it into sight.
+
+## Dropping files and text
+
+Views can accept files or text dragged in from other apps, like the file manager or a browser:
+
+```cpp
+const State<bool> targeted(false);
+
+DropZone().on_drop({.files = [=](const std::vector<std::filesystem::path>& files, Point where) {
+                        import(files);
+                        return true; // accepted
+                    },
+                    .text = [=](const std::string& text, Point) { paste(text); return true; },
+                    .targeted = [=](bool over) { targeted = over; }});
+```
+
+```rust
+# fn import(files: Vec<std::path::PathBuf>) {}
+# fn paste(text: String) {}
+let targeted = State::new(false);
+
+elg! {
+    Text("Drop files here").on_drop(
+        DropOptions::default()
+            .files(|files, _where| {
+                import(files);
+                true // accepted
+            })
+            .text(|text, _| {
+                paste(text);
+                true
+            })
+            .targeted(move |over| targeted.set(over)),
+    )
+}
+```
+
+The innermost view under the pointer that takes that kind of content gets it. `targeted` tells you
+when something it could take is being dragged over it, so you can highlight it.
+
+## Raw pointer and scroll events
+
+For full control, `on_pointer` and `on_scroll` give you the events themselves, in the view's own
+coordinates. Return true to keep an event. Keeping a pointer press *captures* the pointer, so the
+moves and the release come to your view wherever the pointer goes:
+
+```cpp
+const State<Point> cursor;
+
+Canvas(draw).on_pointer([=](const PointerEvent& e) {
+    if (e.kind == PointerEvent::Kind::down || e.kind == PointerEvent::Kind::move) {
+        cursor = e.location;
+        return true;
+    }
+    return false;
+});
+
+Canvas(draw).on_scroll([=](const ScrollEvent& e) {
+    if (!has(e.modifiers, primary_modifier())) {
+        return false; // the scroll view around it scrolls instead
+    }
+    zoom_by(e.dy, e.location);
+    return true;
+});
+```
+
+```rust
+# fn zoom_by(dy: f32, at: Point) {}
+let cursor = State::new(Point::new(0.0, 0.0));
+
+elg! {
+    VStack {
+        Canvas(|_| {}).on_pointer(move |e| {
+            if matches!(e.kind, PointerEventKind::Down | PointerEventKind::Move) {
+                cursor.set(e.location);
+                return true;
+            }
+            false
+        })
+
+        Canvas(|_| {}).on_scroll(|e| {
+            if !e.modifiers.has(KeyModifiers::primary()) {
+                return false; // the scroll view around it scrolls instead
+            }
+            zoom_by(e.dy, e.location);
+            true
+        })
+    }
+}
+```
+
+For anything beyond that, like one handler for several kinds of events, you can write your own
+event modifier. The [reference](../../reference/) lists every event type.

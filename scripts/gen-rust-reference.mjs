@@ -35,6 +35,7 @@ const FORMAT_VERSION = 61;
 
 // --- Pages and anchors ---
 
+const PRIMITIVES = new Set(['bool', 'char', 'str', 'f32', 'f64', 'i8', 'i16', 'i32', 'i64', 'i128', 'isize', 'u8', 'u16', 'u32', 'u64', 'u128', 'usize']);
 const kindOrder = ['macro', 'proc_macro', 'struct', 'enum', 'trait', 'function', 'type_alias', 'constant', 'static', 'union'];
 const kindTitle = {
 	macro: 'Macros',
@@ -409,7 +410,8 @@ function implsOf(crate, item) {
 		for (const mid of impl.items) {
 			const m = index[mid];
 			if (m && m.visibility === 'public' && kindOf(m) === 'function') methods.push(m);
-			else if (m && m.visibility === 'public' && kindOf(m) === 'constant') methods.push(m);
+			// Associated constants: Color::WHITE, Alignment::TOP.
+			else if (m && m.visibility === 'public' && ['constant', 'assoc_const'].includes(kindOf(m))) methods.push(m);
 		}
 	}
 	return { methods, traits: [...traits].sort() };
@@ -438,12 +440,17 @@ function renderItem(crate, item, printer) {
 	if (kind === 'struct' || kind === 'enum' || kind === 'union') {
 		const { methods, traits } = implsOf(crate, item);
 		if (methods.length) {
-			out.push(`<details class="elg-methods"${methods.length <= 12 ? ' open' : ''}>`, `<summary>Methods (${methods.length})</summary>`, '');
+			// Constants first, then methods, as in the source.
+			methods.sort((a, b) => (kindOf(a) === 'function') - (kindOf(b) === 'function'));
+			const constants = methods.filter((m) => kindOf(m) !== 'function').length;
+			const label =
+				constants === methods.length ? 'Constants' : constants ? 'Constants and methods' : 'Methods';
+			out.push(`<details class="elg-methods"${methods.length <= 12 ? ' open' : ''}>`, `<summary>${label} (${methods.length})</summary>`, '');
 			for (const m of methods) {
 				const sig =
 					kindOf(m) === 'function'
 						? printer.fnSig(m.name, m.inner.function)
-						: `pub const ${m.name}: ${printer.type(m.inner.constant.type)};`;
+						: `pub const ${m.name}: ${printer.type((m.inner.constant ?? m.inner.assoc_const).type)};`;
 				out.push('```rust', sig, '```', '');
 				const docs = docsToMarkdown(crate, m, printer, 4);
 				if (docs) out.push(docs, '');
@@ -459,7 +466,9 @@ function renderItem(crate, item, printer) {
 			.map((id) => crate.json.index[id]?.inner.impl)
 			.filter((impl) => impl && !impl.blanket_impl)
 			.map((impl) => printer.type(impl.for))
-			.filter((t) => t !== '_');
+			// The elg! DSL's leading-dot names (`accent`, `bold`, ...) are types too; they'd bury
+			// the implementors that matter.
+			.filter((t) => t !== '_' && !(/^[a-z_][a-z0-9_]*$/.test(t) && !PRIMITIVES.has(t)));
 		if (impls.length) {
 			const unique = [...new Set(impls)].sort();
 			out.push(`<p class="elg-traits"><span>Implemented by</span> ${unique.map((t) => `<code>${t.replace(/</g, '&lt;')}</code>`).join(' ')}</p>`, '');

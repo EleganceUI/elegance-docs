@@ -1,0 +1,172 @@
+---
+title: Images
+description: "Show pictures from files and memory, size them, and load them from the web."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+`Image` shows an icon, a picture from a file, or a picture you already have in memory. Icons are
+covered in [Text, fonts, and icons](../text-and-icons/#icons); this page is about pictures.
+
+## Files and data
+
+```cpp
+Image({.file = "assets/photo.jpg"})
+Image({.file = "assets/logo@2x.png", .scale = 2})  // @2x artwork: half as many points as pixels
+Image({.data = embedded_png})                     // std::span<const unsigned char>, copied
+```
+
+```rust
+# let embedded_png: &'static [u8] = &[];
+Image(ImageSource::file("/path/to/photo.jpg"))
+Image(ImageSource::file("/path/to/logo@2x.png").scale(2.0)) // @2x artwork: half as many points as pixels
+Image(ImageSource::data(embedded_png))                      // encoded bytes, e.g. from include_bytes!
+```
+
+PNG, JPEG, GIF (its first frame), BMP, TIFF, and ICO always work, and WebP, HEIF, and AVIF where
+the system can read them. Photos are turned the right way up using the orientation the camera
+recorded.
+
+<Lang only="rust">
+
+For pictures that ship with your app, put them in your crate's `assets/` folder and use
+`asset!`, which builds them into the app, so they're found however it's started:
+`Image(asset!("images/logo.png"))`. Paths given to `ImageSource::file` are read at run time,
+relative to the current directory, so use absolute paths for files the user picks.
+
+</Lang>
+
+Pictures are decoded in the background and appear when they're ready. Their size is known right
+away, so nothing jumps when they appear. A file that can't be read shows nothing, with a warning
+in the log.
+
+## Sizing
+
+An image is drawn at its own size (its pixels divided by its scale). Make it `.resizable()` to
+have it take the size it's offered instead, and keep its proportions with `aspect_ratio`:
+
+```cpp
+Image({.file = "photo.jpg"})
+    .resizable()
+    .aspect_ratio(ContentMode::fill)
+    .frame(160, 100)
+    .clipped();
+
+Image({.file = "diagram.png"}).resizable().aspect_ratio(ContentMode::fit).frame({.max_width = 400});
+
+Image({.file = "avatar.jpg"}).resizable().frame(48, 48).clip_shape(Circle());
+```
+
+```rust
+Image(ImageSource::file("/path/to/photo.jpg"))
+    .resizable()
+    .aspect_ratio(mode: .fill)
+    .frame(160, 100)
+    .clipped()
+
+Image(ImageSource::file("/path/to/diagram.png")).resizable().aspect_ratio(mode: .fit).frame(max_width: 400)
+
+Image(ImageSource::file("/path/to/avatar.jpg")).resizable().frame(48, 48).clip_shape(Circle())
+```
+
+Put `.resizable()` directly on the image, before anything else. Pictures stay smooth when they're
+drawn smaller than their real size.
+
+## Images from the web
+
+`AsyncImage` downloads an image over HTTP(S) when it's first shown. It shows a spinner while
+loading, the image when it arrives, and a placeholder icon if it fails:
+
+```cpp
+AsyncImage("https://example.com/avatar.png", {.content_mode = ContentMode::fill})
+    .frame(48, 48)
+    .clip_shape(Circle());
+```
+
+```rust
+AsyncImage("https://example.com/avatar.png", content_mode: .fill)
+    .frame(48, 48)
+    .clip_shape(Circle())
+```
+
+With `content_mode` the image is resizable and keeps its aspect ratio that way; without it, it's
+shown at its own size. Downloads are cached in memory, so a list that scrolls back doesn't fetch
+the same images again.
+
+Downloads are secure by default: certificates are checked against the system's, and a redirect
+never goes from `https` to `http`. A download gives up after 30 seconds, and images over 64 MB are
+refused. Several images from one server share a connection.
+
+Downloads go through the system's proxy settings, PAC scripts included, on macOS and Windows.
+`HTTPS_PROXY`, `http_proxy` and `NO_PROXY` in the environment take precedence, and are the only
+settings read on Linux. Only HTTP proxies work, with a user name and password given in the
+proxy's URL. To load images some other way (with a login, through a SOCKS proxy), download them
+with a networking library of your choice and show the bytes with an `Image`; see
+[Networking](../networking/).
+
+### The disk cache
+
+Downloaded images are also kept on disk, for as long as their server's `Cache-Control` or
+`Expires` header allows. After that, they're checked with the server (`ETag`,
+`Last-Modified`), which usually answers that nothing changed. When the server can't be reached,
+the copy on disk is shown, unless the server said it must always be checked. Responses with
+`Cache-Control: no-store` aren't kept.
+
+The cache is 256 MB, in a folder for your app inside the user's cache folder. When it's full,
+the images used longest ago go first. Change it with `set_image_cache`, from the UI thread:
+
+```cpp
+set_image_cache({.disk_limit = 64ull << 20});              // smaller
+set_image_cache({.directory = app_data / "image-cache"});  // somewhere else
+set_image_cache({.disk = false});                          // memory only
+```
+
+```rust
+# let app_data = std::path::PathBuf::from("/tmp");
+set_image_cache(ImageCacheOptions { disk_limit: 64 << 20, ..Default::default() });          // smaller
+set_image_cache(ImageCacheOptions { directory: Some(app_data.join("image-cache")), ..Default::default() }); // elsewhere
+set_image_cache(ImageCacheOptions { disk: false, ..Default::default() });                   // memory only
+```
+
+When a user signs out, forget their images with `clear_image_cache()`, in memory and on disk.
+To keep one image off the disk (a private image whose server doesn't send `no-store`), pass
+`.disk_cache = false`:
+
+```cpp
+AsyncImage(attachment_url, {.content_mode = ContentMode::fit, .disk_cache = false});
+```
+
+```rust
+# let attachment_url = "https://example.com/a.png";
+AsyncImage(attachment_url, content_mode: .fit, disk_cache: false)
+```
+
+`ELG_IMAGE_CACHE=off` in the environment turns the disk cache off, whatever the app sets.
+
+To draw each phase yourself, pass a function:
+
+```cpp
+AsyncImage(url, [](const AsyncImagePhase& phase) -> View {
+    switch (phase.kind) {
+    case AsyncImagePhase::Kind::loading: return Progress();
+    case AsyncImagePhase::Kind::success: return phase.image.resizable().aspect_ratio(ContentMode::fit);
+    case AsyncImagePhase::Kind::failure: return Text(phase.error).foreground_style(ThemeColor::danger);
+    }
+    return View();
+}, {.disk_cache = false}); // the same options; content_mode isn't used
+```
+
+```rust
+# let url = "https://example.com/a.png";
+AsyncImage(url, disk_cache: false) { phase in
+    {
+        match phase {
+            AsyncImagePhase::Loading => Progress::new().into_view(),
+            AsyncImagePhase::Success(image) => image.clone().resizable().aspect_ratio_with(|o| o.mode(ContentMode::Fit)),
+            AsyncImagePhase::Failure(error) => Text::new(error.clone()).foreground_style(ThemeColor::Danger).into_view(),
+        }
+    }
+}
+```
+
+See the [network example](../../examples/#network) for a long list of web images.

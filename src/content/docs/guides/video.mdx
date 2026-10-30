@@ -1,17 +1,19 @@
 ---
 title: Video
-description: "Playing video files and streams with VideoPlayer, VideoView and the built-in controls."
+description: "Play video files and streams, add ready-made controls or build your own, and show frames your app makes itself."
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 import Example from '../../../components/Example.astro';
+import Lang from '../../../components/Lang.astro';
 
-Video playback uses the system's media stack. On Windows that's Media Foundation, with hardware
-decoding: MP4 (H.264), HEVC, VP9 and AV1 where the codecs are installed, plus MOV, WMV and more.
-It plays the sound too, and keeps picture and sound in sync.
+## Playing a video
+
+A `VideoPlayer` is a video and its playback. `VideoView` shows its picture, and `VideoControls`
+adds a ready-made bar with play and pause, a scrubber, the time, and a mute button:
 
 ```cpp
-const VideoPlayer player("assets/intro.mp4");    // a file path or an http(s) URL
+const VideoPlayer player("assets/intro.mp4"); // a file, or an http(s) URL
 
 ZStack({.alignment = Alignment::bottom},
        VideoView(player).aspect_ratio(16.f / 9.f).clip_shape(RoundedRectangle(12)),
@@ -20,34 +22,66 @@ ZStack({.alignment = Alignment::bottom},
 player.play();
 ```
 
-## VideoPlayer
+```rust
+# fn f() -> Result<(), Error> {
+let player = VideoPlayer::new("assets/intro.mp4")?; // a file, or an http(s) URL
 
-A `VideoPlayer` is a video and its playback. Copies control the same video, and it stops when the
-last copy, and the last view showing it, goes away.
+let _ = elg! {
+    ZStack(alignment: .bottom) {
+        VideoView(&player).aspect_ratio(16.0 / 9.0, .fit).clip_shape(RoundedRectangle(12))
+        VideoControls(&player).padding(10)
+    }
+};
 
-Loading is asynchronous; if the video can't be played (a missing file, an unsupported format, a
-network error), `error()` says why.
+player.play();
+# Ok(()) }
+```
 
-| Controls | Reactive readers |
+The video plays with its sound, kept in sync. Each platform uses its own media support: Media
+Foundation on Windows, AVFoundation on macOS, and GStreamer on Linux. So MP4 (H.264) works
+everywhere, and HEVC, VP9, AV1, and other formats work where the system can play them. Decoding
+uses the graphics hardware where it can.
+
+<Aside>
+On Linux, video needs GStreamer installed when Elegance is built. Without it, apps still build and
+run, but videos don't play, and `error()` says why.
+</Aside>
+
+`VideoView` fits the picture into its space by default, or fills it, cropping the edges, with
+<Lang only="cpp" inline>`VideoView(player, ContentMode::fill)`</Lang><Lang only="rust" inline>`VideoView(&player).mode(.fill)`</Lang>.
+Anything the picture doesn't cover is black. On its own, it's the size of the video.
+
+## Controlling playback
+
+Copies of a player control the same video, so you can hand one to as many views and closures as
+you like. Playback stops when the last copy, and the last view showing it, is gone.
+
+| To | Use |
 | --- | --- |
-| `play()`, `pause()`, `toggle()` | `is_playing()` |
-| `stop()` (pauses and rewinds) | `is_ready()`: the duration and size are known |
-| `seek(seconds)` | `time()`, `duration()` |
-| `set_volume(0...1)`, `set_muted(bool)` | `volume()`, `is_muted()` |
-| `set_looping(bool)` | `is_looping()` |
-| | `natural_size()` (pixels), `error()` |
+| play, pause, or switch between them | `play()`, `pause()`, `toggle()` |
+| stop and go back to the start | `stop()` |
+| jump to a time | `seek(seconds)` |
+| change the sound | `set_volume(0…1)`, `set_muted(…)` |
+| play it over and over | `set_looping(…)` |
 
-For sliders, `progress_binding()` is the position from 0 to 1 (writing seeks), and
-`volume_binding()` the volume.
+These tell you how it's going, and update views that show them:
 
-## VideoView and VideoControls
+| Reader | What it tells you |
+| --- | --- |
+| `is_playing()` | whether it's playing |
+| `is_ready()` | whether its length and size are known yet |
+| `time()`, `duration()` | where it is, and how long it is, in seconds |
+| `volume()`, `is_muted()`, `is_looping()` | the settings above |
+| `natural_size()` | its size in pixels |
+| `error()` | why it can't play: a missing file, a format the system can't play, or a network error |
 
-`VideoView(player, mode)` shows the picture, fitted into the space (`ContentMode::fit`, the
-default) or filling it (`ContentMode::fill`, clip it), on black. Its ideal size is the video's own.
+A video loads in the background, so `is_ready()` starts out false.
 
-`VideoControls(player)` is a ready-made bar with play/pause, a scrubber, the time and a mute
-button. Lay it over the video or put it below. You can also build your own from the player's
-readers and bindings:
+## Your own controls
+
+To design your own controls, build them from those readers. `progress_binding()` is the position
+from 0 to 1, and seeks when it's changed, so it's what a slider needs. `volume_binding()` is the
+volume.
 
 ```cpp
 HStack(Button(If([=] { return player.is_playing(); }, Image("pause"), Image("play")), [=] { player.toggle(); })
@@ -56,16 +90,59 @@ HStack(Button(If([=] { return player.is_playing(); }, Image("pause"), Image("pla
        Text([=] { return std::format("{:.0f} s", player.time()); }));
 ```
 
+```rust
+# fn f(player: VideoPlayer) {
+let (p1, p2, p3) = (player.clone(), player.clone(), player.clone());
+
+let _ = elg! {
+    HStack {
+        Button(action: move || p1.toggle()) {
+            if p2.is_playing() { Image("pause") } else { Image("play") }
+        }
+        .accessibility_label("Play or pause")
+        Slider(player.progress_binding())
+        Text(move || format!("{:.0} s", p3.time()))
+    }
+};
+# }
+```
+
+## Frames from your app
+
+When your app makes the pictures itself, for example with its own decoder or from a remote camera,
+push them into a `VideoFeed` and show it with `VideoFeedView`. You can push from any thread, and
+only the views showing the feed are redrawn when a frame arrives:
+
+```cpp
+const VideoFeed feed;
+
+VideoFeedView(feed).aspect_ratio(16.f / 9.f);
+
+// later, from any thread
+feed.push(VideoFeed::Format::nv12, 1280, 720, std::move(pixels));
+```
+
+```rust
+# fn f() -> Result<(), Error> {
+# let pixels = vec![0u8; 1280 * 720 * 3 / 2];
+let feed = VideoFeed::new()?;
+
+let _ = elg! { VideoFeedView(&feed).aspect_ratio(16.0 / 9.0, .fit) };
+
+// later, from any thread
+feed.push(VideoFormat::Nv12, 1280, 720, &pixels, false);
+# Ok(()) }
+```
+
+Frames can be BGRA, NV12, or I420, packed top to bottom with no padding between rows. Elegance
+turns YUV into colors on the graphics card. `clear()` shows black until the next frame, and
+`size()` and `has_frame()` tell views about the frames. A feed view can show the picture mirrored,
+which is what people expect when they see their own camera.
+
 ## Performance
 
-Decoded frames go straight to the GPU: the decoder writes into textures shared with the renderer,
-with no copies through the CPU. A playing video redraws its window without running layout again,
-and the UI thread isn't involved.
-
-<Aside>
-Media Foundation is the only backend today. An optional FFmpeg backend, for formats Windows doesn't
-decode, is planned.
-</Aside>
+Frames go straight to the graphics card, without being copied through the processor, and a
+playing video redraws its window without working out the layout again.
 
 ## Example
 

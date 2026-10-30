@@ -1,0 +1,127 @@
+---
+title: Audio
+description: "Playing sound effects and music, and controlling playback from the UI."
+---
+
+Elegance plays sound through the system's default output, and follows it when it changes, for
+example when headphones are plugged in. It reads **WAV**, **FLAC**, and **MP3** files.
+
+## Sound effects
+
+A `Sound` is loaded into memory once, ready to play instantly, as often as you like. Each play
+starts afresh, so they can overlap:
+
+```cpp
+const Sound click = Sound::load("assets/click.wav");
+
+Button("Tap", [=] { click.play(); });
+Button("Quiet tap", [=] { click.play({.volume = 0.4f, .pitch = 1.2f, .pan = -0.5f}); });
+```
+
+```rust
+# fn f() -> Result<(), Error> {
+let click = Sound::load("assets/click.wav")?;
+let quiet = click.clone();
+
+let _ = elg! {
+    HStack {
+        Button("Tap", move || click.play())
+        Button("Quiet tap", move || quiet.play_with(PlayOptions { volume: 0.4, pitch: 1.2, pan: -0.5 }))
+    }
+};
+# Ok(()) }
+```
+
+A sound can also be loaded from data in memory. Loading fails with an error if the sound can't be
+read. Copies of a sound share its data.
+
+## Music and long audio
+
+An `AudioPlayer` reads a file as it plays it, so even a long one starts at once and uses little
+memory:
+
+```cpp
+const AudioPlayer music("assets/theme.mp3");
+
+Button(Text([=] { return music.is_playing() ? "Pause" : "Play"; }), [=] { music.toggle(); });
+Slider(music.time_binding(), {.max = static_cast<float>(music.duration())});
+Slider(music.volume_binding());
+Text([=] { return std::format("{:.0f} / {:.0f} s", music.time(), music.duration()); });
+```
+
+```rust
+# fn f() -> Result<(), Error> {
+let music = AudioPlayer::new("assets/theme.mp3")?;
+let (m1, m2, m3) = (music.clone(), music.clone(), music.clone());
+
+let _ = elg! {
+    VStack {
+        Button(Text(move || if m1.is_playing() { "Pause" } else { "Play" }), move || m2.toggle())
+        Slider(music.time_binding(), max: music.duration() as f32)
+        Slider(music.volume_binding())
+        Text(move || format!("{:.0} / {:.0} s", m3.time(), m3.duration()))
+    }
+};
+# Ok(()) }
+```
+
+You can play, pause, stop (which also rewinds), seek, change the volume, and loop. Whether it's
+playing, the time, the volume, and so on update views that show them as it plays.
+
+`time_binding()` follows the playback position and seeks when it's changed, which is exactly what
+a slider for scrubbing needs. Copies of a player control the same playback, which stops when the
+last copy is gone.
+
+## Sound your app makes
+
+To play audio as your app produces it, such as a voice call, a synthesizer, or a decoder of your
+own, use an `AudioStream`. Write samples to it from any thread, and they play as soon as the
+device is ready for them:
+
+```cpp
+const AudioStream out({.channels = 2});
+out.write(decoded); // interleaved samples, from -1 to 1
+```
+
+```rust
+# fn f(decoded: &[f32]) -> Result<(), Error> {
+let out = AudioStream::new(AudioStreamOptions { channels: 2, ..Default::default() })?;
+out.write(decoded); // interleaved samples, from -1 to 1
+# Ok(()) }
+```
+
+If more than about a second piles up, the oldest is dropped, so a stalled device doesn't leave you
+behind. Or let the stream ask you for each buffer as it needs it. That runs on the audio thread,
+so keep it quick:
+
+```cpp
+const AudioStream tone({.channels = 1, .on_render = [phase = 0.0](std::span<float> buffer) mutable {
+    for (float& sample : buffer) {
+        sample = 0.2f * float(std::sin(phase));
+        phase += 2 * std::numbers::pi * 440 / 48000;
+    }
+}});
+```
+
+```rust
+# fn f() -> Result<(), Error> {
+let phase = std::sync::Mutex::new(0.0_f32); // the callback is `Fn`, so it keeps its state in a Mutex
+let tone = AudioStream::with_render(AudioStreamOptions { channels: 1, ..Default::default() }, move |buffer| {
+    let mut phase = phase.lock().unwrap();
+    for sample in buffer.iter_mut() {
+        *sample = 0.2 * phase.sin();
+        *phase += 2.0 * std::f32::consts::PI * 440.0 / 48000.0;
+    }
+})?;
+# Ok(()) }
+```
+
+A stream starts playing as soon as it's made; `stop()` and `start()` pause and resume it.
+`audio_output_devices()` lists the outputs, if you'd rather not use the default one.
+
+## Threads and devices
+
+Sounds and players can be used from any thread, but views should read them on the UI thread, like
+any state. Without an output device, playing does nothing, and says so once in the log.
+
+To record audio, see [Microphone and camera](../capture/).

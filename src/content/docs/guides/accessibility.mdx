@@ -1,0 +1,132 @@
+---
+title: Accessibility
+description: "How Elegance apps work with screen readers, and the modifiers that improve what they say."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+Elegance describes every window's contents to screen readers and other assistive technology,
+through [AccessKit](https://accesskit.dev). Today that works on Windows, with Narrator, NVDA, and
+JAWS, and with testing tools that use UI Automation. macOS and Linux are coming.
+
+## What you get for free
+
+The built-in views describe themselves:
+
+- `Text` is a label with its text.
+- `Button` is a button named by its label's text, and screen readers can press it.
+- `Toggle` is a check box or switch with its state, and can be toggled.
+- `Slider` and `NumberInput` say their value and range, and can be set, raised, and lowered.
+- `TextField` and `TextArea` say their text and accept new text; a secure `TextField` is marked
+  as a password.
+- `Progress` (with how far along it is, when it knows) and images say what they are. A
+  `Separator` reads as a separator; hide one that's only decoration.
+- A list people can [select in](../lists/#selecting-rows) is a list box, and its rows say whether
+  they're selected; screen readers can select them.
+- Keyboard focus is reported, so screen readers follow Tab.
+
+This is on unless you turn it off<Lang only="cpp" inline> (with the `ELG_ACCESSIBILITY` CMake option)</Lang>.
+Nothing is worked out until a screen reader asks, so it costs nothing when none is running.
+
+## Improving what's said
+
+Some views need help. A button with only an icon says nothing, because an icon has no words:
+
+```cpp
+Button(Image("trash"), remove).accessibility_label("Delete");
+```
+
+```rust
+# let remove = || {};
+Button(action: remove) { Image("trash") }.accessibility_label("Delete")
+```
+
+These modifiers change what's said:
+
+```cpp
+.accessibility_label("Volume")                  // what it's called
+.accessibility_value([=] { return std::format("{}%", volume()); }) // what it holds, in words
+.accessibility_hint("Deletes the draft")        // what using it does, if the label doesn't say
+.accessibility_hidden()                         // decoration: leave it (and its contents) out
+.accessibility_role(AccessibilityRole::heading) // what it is
+.accessibility_element()                        // one element for everything inside
+.accessibility_action([=] { open(); })          // what the default action (click) does
+```
+
+```rust
+# let (volume, open) = (State::new(50), || {});
+# let _ = elg! { Text("x")
+.accessibility_label("Volume")                         // what it's called
+.accessibility_value(move || format!("{}%", volume.get())) // what it holds, in words
+.accessibility_hint("Deletes the draft")               // what using it does, if the label doesn't say
+.accessibility_hidden(true)                            // decoration: leave it, and what's inside, out
+.accessibility_role(.heading)                          // what it is
+.accessibility_element()                               // one element for everything inside
+.accessibility_action(open)                            // what its main action (a click) does
+# };
+```
+
+Labels, values, and hints can follow your state, like any other argument.
+
+### Custom controls
+
+To a screen reader, a control you've drawn yourself is just some shapes and text. `on_activate`
+makes it work with the pointer, the keyboard (Tab to it, then press Space or Return), and screen
+readers alike. Give it a role and a label too:
+
+```cpp
+ZStack({.alignment = Alignment::leading}, Capsule().fill(track_color),
+       Circle().fill(Color::white).frame(28, 28).padding(2).offset(knob_x, 0.f))
+    .frame(52, 32)
+    .on_activate(toggle)
+    .accessibility_element()
+    .accessibility_role(AccessibilityRole::toggle)
+    .accessibility_label("Dark mode")
+    .accessibility_value([=] { return dark() ? "On" : "Off"; });
+```
+
+```rust
+# let (dark, track_color, knob_x) = (State::new(false), Color::hex(0x34C759), 20.0);
+ZStack(alignment: .leading) {
+    Capsule().fill(track_color)
+    Circle().fill(.white).frame(28, 28).padding(2).offset(knob_x, 0.0)
+}
+.frame(52, 32)
+.on_activate(move || dark.toggle())
+.accessibility_element()
+.accessibility_role(.toggle)
+.accessibility_label("Dark mode")
+.accessibility_value(move || if dark.get() { "On" } else { "Off" })
+```
+
+### Rows
+
+`accessibility_element()` makes a group read as one line, made of the text inside, instead of
+each text separately:
+
+```cpp
+HStack(Image("user"), Text(name), Spacer(), Text(email)).accessibility_element();
+```
+
+```rust
+# let (name, email) = ("Ada", "ada@example.com");
+HStack {
+    Image("user")
+    Text(name)
+    Spacer()
+    Text(email)
+}
+.accessibility_element()
+```
+
+## Checking your app
+
+Turn on Narrator (Ctrl+Win+Enter), and go through your app with Tab and Narrator's keys.
+Accessibility Insights for Windows, and the Inspect tool that comes with the Windows SDK, show
+exactly what your app tells screen readers.
+
+## Not yet supported
+
+Screen readers on macOS (VoiceOver) and Linux (Orca), announcing changes as they happen, the
+cursor and selection inside text fields, and following the system's reduced-motion and
+high-contrast settings are planned.

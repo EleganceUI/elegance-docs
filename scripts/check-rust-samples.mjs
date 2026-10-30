@@ -63,6 +63,8 @@ function shape(body) {
 	if (code[0].trim().startsWith('.')) return 'body';
 	const text = code.join('\n');
 	if (/\bfn main\s*\(/.test(text)) return 'program';
+	// Visible code inside a hidden `# fn f() {` is plain Rust, whatever it starts with.
+	if (body.some((l) => /^\s*# .*\bfn \w+.*\{\s*$/.test(l))) return 'body';
 	const first = code[0].trim();
 	if (!/^elg!/.test(first) && ((/^[A-Z]\w*\s*[({]/.test(first) && !/^[A-Z]\w*::/.test(first)) || /^(if|match)\b.*\{$/.test(first))) return 'dsl';
 	return 'body';
@@ -80,6 +82,9 @@ publish = false
 
 [dependencies]
 elegance = { path = ${JSON.stringify(path.join(process.env.RUST_CHECK_ELEGANCE_RS ?? rustDir, 'elegance'))} }
+# Crates the guides suggest.
+send_wrapper = "0.6"
+ureq = "3"
 
 [workspace]
 `,

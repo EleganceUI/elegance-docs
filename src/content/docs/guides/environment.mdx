@@ -1,0 +1,115 @@
+---
+title: The environment
+description: "Values that views inherit from the views around them: the built-in ones, your own, and how to read them."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+The *environment* holds values that views inherit from the views they're inside, such as the font
+and the tint. A modifier sets a value for a view and everything inside it, and each view sees the
+value set nearest above it.
+
+## Built-in values
+
+| Modifier | Key | Default |
+| --- | --- | --- |
+| `.font(...)` | `FontKey` | `Font::body` |
+| `.foreground_style(...)` | `ForegroundKey` | the theme's `primary` |
+| `.tint(...)` | `TintKey` | the theme's `accent` |
+| `.color_scheme(...)` | `ColorSchemeKey` | the system's setting |
+| `.theme(...)` | `ThemeKey` | `Theme::standard()` |
+| `.disabled(...)` | `DisabledKey` | `false` |
+| `.button_style(...)`, `.toggle_style(...)`, `.text_field_style(...)` | `ButtonStyleKey`, ... | the default styles |
+| `.hover_delay(...)` | `HoverDelayKey` | enter 0, exit 0 |
+| (set by the window) | `WindowKey` | the window the view is in |
+
+A value can follow a state: set it with a closure or a state, and when it changes, only the views
+that use that value update.
+
+```cpp
+Root().tint([=] { return accent_color(); });
+```
+
+```rust
+# let accent_color = State::new(Color::hex(0x7AA2F7));
+VStack { Text("Root") }.tint(move || accent_color.get())
+```
+
+## Your own keys
+
+<Lang only="cpp" inline>A key is a type with a `Value` type, a unique `name`, and a `default_value`:</Lang><Lang only="rust" inline>A key is a type that implements `EnvironmentKey`, with the type of its value and a default:</Lang>
+
+```cpp
+struct CompactKey {
+    using Value = bool;
+    static constexpr std::string_view name = "myapp.compact"; // stable and unique
+    static bool default_value(const EnvironmentValues&) { return false; }
+};
+```
+
+```rust
+struct CompactKey;
+
+impl EnvironmentKey for CompactKey {
+    type Value = bool;
+    fn default_value(_: &EnvironmentValues) -> bool { false }
+}
+```
+
+Set it with <Lang only="cpp" inline>`.environment<Key>(value)`</Lang><Lang only="rust" inline>`.environment::<Key>(value)`</Lang>:
+
+```cpp
+Settings().environment<CompactKey>(true);
+Settings().environment<CompactKey>(compact_state); // reactive
+```
+
+```rust
+# struct CompactKey;
+# impl EnvironmentKey for CompactKey { type Value = bool; fn default_value(_: &EnvironmentValues) -> bool { false } }
+# let compact_state = State::new(false);
+let settings = Text::new("Settings").environment::<CompactKey>(true);
+let settings = Text::new("Settings").environment::<CompactKey>(compact_state); // follows the state
+```
+
+## Reading values
+
+<Lang only="cpp" inline>`Environment<Key>()`</Lang><Lang only="rust" inline>`Environment::<Key>::new()`</Lang> reads a value where a view is placed. Use it while that view is
+being built: in a component, a `ViewModifier`'s `body`, a style's `make_body`, or a window's
+content. It gives you a reader, which follows the value as it changes, so read it inside closures:
+
+```cpp
+struct SettingRow {
+    std::string title;
+
+    View body() const {
+        const auto compact = Environment<CompactKey>();
+        return Text(title).font([=] { return compact() ? Font::footnote : Font::body; });
+    }
+};
+```
+
+```rust
+# struct CompactKey;
+# impl EnvironmentKey for CompactKey { type Value = bool; fn default_value(_: &EnvironmentValues) -> bool { false } }
+#[component]
+fn SettingRow(title: String) -> impl IntoView {
+    let compact = Environment::<CompactKey>::new();
+    elg! {
+        Text(title.clone()).font(move || if compact.get() { Font::footnote() } else { Font::body() })
+    }
+}
+```
+
+A plain function that returns a view runs *before* its view is placed, so it sees its caller's
+environment rather than its own. For values that depend on where a view ends up, use a component,
+or a closure that's given the environment:
+
+```cpp
+Circle().fill([](const EnvironmentValues& env) { return env.get<TintKey>().opacity(0.5f); });
+```
+
+```rust
+Circle().fill(Prop::from_env(|env| ShapeStyle::Color(env.get::<TintKey>().opacity(0.5))))
+```
+
+The environment's `get` reads any key, and `color` tells you what a theme color is there.

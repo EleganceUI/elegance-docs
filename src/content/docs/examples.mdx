@@ -6,17 +6,34 @@ tableOfContents:
 ---
 
 import Example from '../../components/Example.astro';
+import Lang from '../../components/Lang.astro';
 
 The examples live in the [elegance-examples](https://github.com/EleganceUI/elegance-examples)
 repository, one folder each, in C++ (`<name>-cpp`) and Rust (`<name>-rs`). Each folder is a
-complete project with its own build files: copy one to start an app.
+complete project with its own build files, so you can copy one to start an app. Where an example
+has a Rust version, the language switch shows it.
+
+<Lang only="cpp">
 
 ```sh
-cd elegance-examples\todos-cpp
-cmake --preset windows-release
-cmake --build build/windows-release
-build\windows-release\bin\todos.exe
+cd elegance-examples/todos-cpp
+cmake --preset macos-release      # or windows-release
+cmake --build build/macos-release
 ```
+
+The app is built into `build/<preset>`. On Linux, configure without a preset, as in
+[Installation](../start/installation/).
+
+</Lang>
+
+<Lang only="rust">
+
+```sh
+cd elegance-examples/todos-rs
+cargo run --release
+```
+
+</Lang>
 
 ## minimal
 
@@ -103,8 +120,15 @@ File dialogs, notifications, a tray icon with a menu, and dropping files from ot
 
 ## More
 
-elegance-examples also has larger apps (`login-cpp`, a sign-in screen with a QR code; `music-cpp`,
-`shell-cpp`, `design-cpp`), a starter app with components (`hello-cpp`, `hello-rs`), and
-[hot reload](../guides/hot-reload/) set up (`preview-cpp`, `preview-rs`). This repository has
-`apps/sandbox`, nearly every feature in one scrolling window, and `apps/preview`, the preview
-host.
+elegance-examples also has:
+
+- larger apps: `login-cpp`, a sign-in screen with a QR code, and `music-cpp`, `shell-cpp`, and
+  `design-cpp`;
+- a starter app split into components: `hello-cpp` and `hello-rs`;
+- [hot reload and previews](../guides/hot-reload/), set up and ready: `preview-cpp` and
+  `preview-rs`;
+- more on one topic each: `effects`, `grids`, and `popover`, in both languages, and `fonts-cpp`,
+  `navigation-cpp`, and `spinner-cpp`;
+- Rust only: `components-rs` (every kind of [component prop](../guides/custom-views/#components),
+  children, and modifiers of your own), `split-view-rs`, `icon-strip-rs`, and `wgpu-image-rs` and
+  `wgpu-direct-rs`, which draw with [wgpu](https://wgpu.rs) into an Elegance window.

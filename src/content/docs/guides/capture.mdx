@@ -1,14 +1,17 @@
 ---
 title: Microphone and camera
-description: "Recording audio from the microphone, showing a live camera picture, and taking snapshots."
+description: "Record from the microphone, show a live camera picture, and take snapshots."
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 import Example from '../../../components/Example.astro';
+import Lang from '../../../components/Lang.astro';
 
-<Aside>
-Windows asks the user for access to the microphone and camera in **Settings > Privacy**. When
-access is denied, `error()` says so; show it in your UI.
+<Aside title="Asking for access">
+The system decides whether your app may use the microphone and camera. macOS asks people the first
+time, and Windows lets them choose in **Settings > Privacy**. On Linux, cameras are usually open to
+members of the `video` group. When access is denied, `error()` says so and where to change it, so
+show it in your app.
 </Aside>
 
 ## Recording audio
@@ -16,28 +19,55 @@ access is denied, `error()` says so; show it in your UI.
 An `AudioRecorder` records from a microphone into memory:
 
 ```cpp
-const AudioRecorder recorder;                       // the default input, 48 kHz mono
+const AudioRecorder recorder;                       // the default microphone, 48 kHz mono
 
 Button(Text([=] { return recorder.is_recording() ? "Stop" : "Record"; }), [=] { recorder.toggle(); });
 Progress([=] { return recorder.level(); });         // a live input meter
 Text([=] { return std::format("{:.1f} s", recorder.duration()); });
 ```
 
-`start()` continues the recording, `stop()` pauses it, and `clear()` drops what was recorded. The
-readers `is_recording()`, `duration()`, `level()` (the recent peak, 0 to 1) and `error()` are
-reactive.
+```rust
+# fn f() -> Result<(), Error> {
+let recorder = AudioRecorder::new(AudioRecorderOptions::default())?; // the default microphone, 48 kHz mono
+let (r1, r2, r3, r4) = (recorder.clone(), recorder.clone(), recorder.clone(), recorder.clone());
+
+let _ = elg! {
+    VStack {
+        Button(Text(move || if r1.is_recording() { "Stop" } else { "Record" }), move || r2.toggle())
+        Progress(move || Some(r3.level()))                    // a live input meter
+        Text(move || format!("{:.1} s", r4.duration()))
+    }
+};
+# Ok(()) }
+```
+
+`start()` carries on recording, `stop()` pauses, and `clear()` throws away what was recorded.
+`is_recording()`, `duration()`, `level()` (how loud it's been just now, from 0 to 1), and
+`error()` update views that show them.
 
 When you're done, take the recording out:
 
 ```cpp
-recorder.save_wav("memo.wav");            // a 16-bit WAV file
-std::vector<unsigned char> wav = recorder.wav();
-std::vector<float> samples = recorder.samples(); // interleaved, -1...1
-Sound memo = recorder.sound();            // to play it back
+recorder.save_wav("memo.wav");                   // a WAV file
+std::vector<unsigned char> wav = recorder.wav(); // the same, in memory
+std::vector<float> samples = recorder.samples(); // the raw samples, from -1 to 1
+Sound memo = recorder.sound();                   // to play it back
 memo.play();
 ```
 
-### Choosing an input
+```rust
+# fn f(recorder: AudioRecorder) -> Result<(), Error> {
+recorder.save_wav("memo.wav")?;      // a WAV file
+let wav: Vec<u8> = recorder.wav();   // the same, in memory
+let samples: Vec<f32> = recorder.samples(); // the raw samples, from -1 to 1
+let memo = recorder.sound()?;        // to play it back
+memo.play();
+# Ok(()) }
+```
+
+With more than one channel, the samples take turns: left, right, left, right, and so on.
+
+### Choosing a microphone
 
 ```cpp
 for (const AudioDevice& device : audio_input_devices()) {
@@ -47,43 +77,100 @@ for (const AudioDevice& device : audio_input_devices()) {
 const AudioRecorder recorder({.device_id = chosen_id, .sample_rate = 44100, .channels = 2});
 ```
 
+```rust
+# fn f(chosen_id: String) -> Result<(), Error> {
+for device in audio_input_devices() {
+    // device.id, device.name, device.is_default
+}
+
+let recorder = AudioRecorder::new(AudioRecorderOptions {
+    device_id: chosen_id,
+    sample_rate: 44100,
+    channels: 2,
+    ..Default::default()
+})?;
+# Ok(()) }
+```
+
 ### Streaming
 
-`on_samples` receives each block of samples as it arrives, for streaming or analysis. It runs on
-the audio thread: keep it short, and don't touch views or state from it.
+To send audio somewhere as it's recorded, or analyze it, have each block of samples handed to you
+as it arrives. That happens on the audio thread, which mustn't be kept waiting: keep it short, and
+don't touch views or state from it.
 
 ```cpp
 const AudioRecorder recorder({.on_samples = [=](std::span<const float> block) { encoder->push(block); }});
 ```
+
+```rust
+# fn f(encoder: std::sync::mpsc::Sender<Vec<f32>>) -> Result<(), Error> {
+let recorder = AudioRecorder::with_samples(
+    AudioRecorderOptions { keeps_samples: false, ..Default::default() },
+    move |block| { let _ = encoder.send(block.to_vec()); },
+)?;
+# Ok(()) }
+```
+
+<Lang only="rust">
+
+`keeps_samples: false` says you don't need the recording afterwards, so it isn't kept in memory.
+
+</Lang>
 
 ## Camera
 
 A `Camera` captures a camera's live picture, and `CameraView` shows it:
 
 ```cpp
-const Camera camera;                             // the first camera, about 1280×720
+const Camera camera; // the first camera, about 1280 × 720
 
 CameraView(camera).frame(320, 180).clip_shape(RoundedRectangle(12));
 Button(Text([=] { return camera.is_running() ? "Stop" : "Start"; }),
        [=] { camera.is_running() ? camera.stop() : camera.start(); });
 ```
 
-`CameraView` fills its space by default, cropping the picture (`ContentMode::fit` shows all of
-it). The preview is mirrored, as people expect to see themselves; set `.mirrored = false` in the
-options to turn that off.
+```rust
+# fn f() -> Result<(), Error> {
+let camera = Camera::new(CameraOptions::default())?; // the first camera, about 1280 × 720
+let (c1, c2) = (camera.clone(), camera.clone());
 
-`is_running()`, `size()` (the frame size in pixels) and `error()` are reactive.
+let _ = elg! {
+    VStack {
+        CameraView(&camera).frame(320, 180).clip_shape(RoundedRectangle(12))
+        Button(Text(move || if c1.is_running() { "Stop" } else { "Start" }), move || {
+            if c2.is_running() { c2.stop() } else { c2.start() }
+        })
+    }
+};
+# Ok(()) }
+```
+
+`CameraView` fills its space, cropping the edges of the picture; use `ContentMode::fit` to see
+all of it. The picture is mirrored, the way people expect to see themselves; turn that off with
+`mirrored` in the camera's options.
+
+`is_running()`, `size()` (how big the picture is, in pixels), and `error()` update views that show
+them.
 
 ### Snapshots
 
-`snapshot()` returns the newest frame as a PNG image, not mirrored, or `nullopt` before the first
-frame:
+`snapshot()` gives you the latest picture as a PNG image, not mirrored, or nothing before the
+first one has arrived:
 
 ```cpp
 if (auto png = camera.snapshot()) {
     std::ofstream("snapshot.png", std::ios::binary).write(reinterpret_cast<const char*>(png->data()), png->size());
     // or show it: Image({.data = *png})
 }
+```
+
+```rust
+# fn f(camera: Camera) -> std::io::Result<()> {
+if let Some(png) = camera.snapshot() {
+    std::fs::write("snapshot.png", &png)?;
+    // or show it: Image(ImageSource::data(png))
+}
+# Ok(()) }
 ```
 
 ### Choosing a camera
@@ -94,13 +181,22 @@ for (const CameraDevice& device : camera_devices()) { /* device.id, device.name 
 const Camera camera({.device_id = chosen_id, .width = 1920, .height = 1080});
 ```
 
-The camera's closest mode to the requested size is used. Virtual cameras, such as OBS's, work too.
+```rust
+# fn f(chosen_id: String) -> Result<(), Error> {
+for device in camera_devices() { /* device.id, device.name */ }
 
-### How frames get to the screen
+let camera = Camera::new(CameraOptions { device_id: chosen_id, width: 1920, height: 1080, ..Default::default() })?;
+# Ok(()) }
+```
 
-Camera frames stay in the camera's own format (usually NV12 or YUY2) and are converted to RGB on
-the GPU. Views showing a camera redraw on their own as frames arrive, without involving the UI
-thread.
+You get the camera's closest size to the one you ask for. Virtual cameras, such as OBS's, work
+too.
+
+### Performance
+
+Camera pictures go to the graphics card as the camera delivers them, and are turned into colors
+there. Views showing a camera redraw by themselves as new pictures arrive, without your app's code
+being involved.
 
 ## Example
 

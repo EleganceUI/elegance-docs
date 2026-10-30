@@ -1,0 +1,225 @@
+---
+title: Custom layouts
+description: "Write your own containers that measure and place their children, cache work between passes, and read values their children carry."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+When stacks and grids don't arrange things the way you want, write your own container. A
+`Layout` measures its children and then places them. The built-in stacks are written the same
+way.
+
+## A layout
+
+<Lang only="cpp" inline>Derive from `Layout`</Lang><Lang only="rust" inline>Implement the `Layout` trait</Lang> with two functions:
+
+- `size_that_fits(proposal, children)` returns the size the container wants for a proposal. Measure
+  children with `child.size_that_fits(...)`, as often as you need.
+- `place_children(bounds, proposal, children)` positions each child with `child.place(position,
+  proposal)`. `bounds` has the size you reported, positioned by your parent.
+
+Here's a layout that wraps its children into rows, like words in a paragraph:
+
+```cpp
+class FlowLayout : public Layout {
+public:
+    explicit FlowLayout(float spacing = 8) : spacing_(spacing) {}
+
+    Size size_that_fits(ProposedSize proposal, std::span<const LayoutChild> children) const override {
+        return arrange(proposal.width.value_or(infinity), children, nullptr);
+    }
+
+    void place_children(Rect bounds, ProposedSize, std::span<const LayoutChild> children) const override {
+        arrange(bounds.width, children, &bounds);
+    }
+
+private:
+    Size arrange(float max_width, std::span<const LayoutChild> children, const Rect* bounds) const {
+        float x = 0, y = 0, row_height = 0, width = 0;
+        for (const LayoutChild& child : children) {
+            const Size size = child.size_that_fits(ProposedSize::unspecified()); // its ideal size
+            if (x > 0 && x + size.width > max_width) {
+                x = 0;
+                y += row_height + spacing_;
+                row_height = 0;
+            }
+            if (bounds) {
+                child.place({bounds->x + x, bounds->y + y}, ProposedSize{size.width, size.height});
+            }
+            x += size.width + spacing_;
+            width = std::max(width, x - spacing_);
+            row_height = std::max(row_height, size.height);
+        }
+        return {width, y + row_height};
+    }
+
+    float spacing_;
+};
+```
+
+```rust
+struct FlowLayout {
+    spacing: f32,
+}
+
+impl FlowLayout {
+    fn arrange(&self, max_width: f32, children: &[LayoutChild], bounds: Option<Rect>) -> Size {
+        let (mut x, mut y, mut row_height, mut width) = (0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32);
+        for child in children {
+            let size = child.size_that_fits(ProposedSize::unspecified()); // its ideal size
+            if x > 0.0 && x + size.width > max_width {
+                x = 0.0;
+                y += row_height + self.spacing;
+                row_height = 0.0;
+            }
+            if let Some(bounds) = bounds {
+                child.place(Point::new(bounds.x + x, bounds.y + y), ProposedSize::new(Some(size.width), Some(size.height)));
+            }
+            x += size.width + self.spacing;
+            width = width.max(x - self.spacing);
+            row_height = row_height.max(size.height);
+        }
+        Size::new(width, y + row_height)
+    }
+}
+
+impl Layout for FlowLayout {
+    fn size_that_fits(&self, proposal: ProposedSize, children: &[LayoutChild]) -> Size {
+        self.arrange(proposal.width.unwrap_or(f32::INFINITY), children, None)
+    }
+
+    fn place_children(&self, bounds: Rect, _: ProposedSize, children: &[LayoutChild]) {
+        self.arrange(bounds.width, children, Some(bounds));
+    }
+}
+```
+
+Use it like a stack<Lang only="cpp" inline>, with children as arguments or as a vector</Lang><Lang only="rust" inline>: in `elg!`, put the layout in parentheses and the children in a block after it, or call `view` with a vector</Lang>:
+
+```cpp
+FlowLayout(6)(Tag("C++"), Tag("Vulkan"), Tag("UI"));
+FlowLayout()(std::move(tag_views)); // std::vector<View>
+```
+
+```rust
+# struct FlowLayout { spacing: f32 }
+# impl Layout for FlowLayout {
+#     fn size_that_fits(&self, _: ProposedSize, _: &[LayoutChild]) -> Size { Size::default() }
+#     fn place_children(&self, _: Rect, _: ProposedSize, _: &[LayoutChild]) {}
+# }
+# let tag_views: Vec<View> = Vec::new();
+let _ = elg! {
+    (FlowLayout { spacing: 6.0 }) {
+        Text("C++")
+        Text("Vulkan")
+        Text("UI")
+    }
+};
+let flow = FlowLayout { spacing: 8.0 }.view(tag_views); // a Vec<View>
+```
+
+The [layout example](../../examples/#layout) uses this layout for its tags.
+
+To build on the standard stacks, `VStackLayout`, `HStackLayout`, and `ZStackLayout` measure and
+place children exactly as the stacks do, so your layout can hand work to them.
+
+### Proposals
+
+A `ProposedSize` is the space a parent offers, with an optional width and height. Leaving one out
+asks a child for its ideal size, zero asks for its smallest, and infinity for its largest. Offering
+`ProposedSize::unspecified()` is the usual way to find out how big a child would like to be.
+
+`spacer_axis()` tells `Spacer`s inside which way to grow; stacks return their direction.
+
+## Caching
+
+`size_that_fits` can be called several times each time the window is laid out. When your layout
+works out something costly from its children that doesn't depend on the space offered, such as
+their ideal sizes, make it a `CachedLayout` instead, and keep that in a cache:
+
+```cpp
+struct FlowCache {
+    std::vector<Size> sizes;
+};
+
+class CachedFlow : public CachedLayout<FlowCache> {
+public:
+    FlowCache make_cache(std::span<const LayoutChild> children) const override {
+        FlowCache cache;
+        for (const LayoutChild& child : children) {
+            cache.sizes.push_back(child.size_that_fits(ProposedSize::unspecified()));
+        }
+        return cache;
+    }
+
+    Size size_that_fits(ProposedSize proposal, std::span<const LayoutChild> children, FlowCache& cache) const override;
+    void place_children(Rect bounds, ProposedSize proposal, std::span<const LayoutChild> children,
+                        FlowCache& cache) const override;
+};
+```
+
+```rust
+struct FlowCache {
+    sizes: Vec<Size>,
+}
+
+struct CachedFlow;
+
+impl CachedLayout for CachedFlow {
+    type Cache = FlowCache;
+
+    fn make_cache(&self, children: &[LayoutChild]) -> FlowCache {
+        FlowCache { sizes: children.iter().map(|c| c.size_that_fits(ProposedSize::unspecified())).collect() }
+    }
+
+    fn size_that_fits(&self, proposal: ProposedSize, children: &[LayoutChild], cache: &mut FlowCache) -> Size {
+        // ... as before, with cache.sizes
+#       Size::default()
+    }
+
+    fn place_children(&self, bounds: Rect, proposal: ProposedSize, children: &[LayoutChild], cache: &mut FlowCache) {
+        // ...
+    }
+}
+```
+
+The cache is made the first time the view is laid out, and kept from then on, between measuring
+and placing and from one frame to the next. When the children change, or one of them might want a
+new size, `update_cache` refreshes it; by default, that makes a new one.
+<Lang only="rust" inline>In `elg!`, wrap a cached layout in `Cached`: `(Cached(CachedFlow)) { … }`.</Lang>
+
+## Values from children
+
+Children can carry values for their layout, like which column they go in. Make a key for the
+value, with its type and a default, and set it on children with `.layout_value`:
+
+```cpp
+struct Column {
+    using Value = int;
+    static int default_value() { return 0; }
+};
+
+GridLayout()(Text("Name").layout_value<Column>(0), Text("Email").layout_value<Column>(1));
+```
+
+```rust
+# struct GridLayout;
+# impl Layout for GridLayout {
+#     fn size_that_fits(&self, _: ProposedSize, _: &[LayoutChild]) -> Size { Size::default() }
+#     fn place_children(&self, _: Rect, _: ProposedSize, _: &[LayoutChild]) {}
+# }
+struct Column;
+
+impl LayoutValueKey for Column {
+    type Value = i32;
+    fn default_value() -> i32 { 0 }
+}
+
+let grid = GridLayout.view(vec![
+    Text::new("Name").layout_value::<Column>(0),
+    Text::new("Email").layout_value::<Column>(1),
+]);
+```
+
+The layout reads it with <Lang only="cpp" inline>`child.value<Column>()`</Lang><Lang only="rust" inline>`child.value::<Column>()`</Lang>, and gets the default for children that
+don't set it. Every child also tells you its `layout_priority()` and whether it `is_spacer()`.

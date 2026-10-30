@@ -21,7 +21,8 @@
 	margin: 0.15rem 0 0.75rem;
 }
 
-.sl-markdown-content h3 {
+/* API names, on reference pages only (they're the ones with kind labels). */
+.sl-markdown-content:has(.elg-kind) h3 {
 	font-family: var(--sl-font-mono);
 	font-size: 1.15rem;
 	letter-spacing: -0.01em;

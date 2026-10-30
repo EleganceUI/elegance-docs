@@ -1,0 +1,315 @@
+---
+title: Components and modifiers
+description: "Make reusable views with functions and components, package modifiers under a name, add your own dot modifiers, and plug into layout and drawing."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+## Functions
+
+The simplest reusable view is a function that returns one:
+
+```cpp
+View Badge(std::string text, Color color) {
+    return Text(std::move(text))
+        .font(Font::caption.bold())
+        .foreground_style(Color::white)
+        .padding(EdgeInsets::symmetric(8, 3))
+        .background(color, Capsule());
+}
+```
+
+```rust
+fn badge(text: &str, color: Color) -> View {
+    elg! {
+        Text(text.to_owned())
+            .font(Font::caption().bold())
+            .foreground_style(Color::WHITE)
+            .padding(horizontal: 8, vertical: 3)
+            .background_in(color, Capsule())
+    }
+    .into_view()
+}
+```
+
+State you make inside lasts as long as the views built there:
+
+```cpp
+View ExpandableSection(std::string title, View content) {
+    const State<bool> open(false);
+    return VStack({.alignment = HorizontalAlignment::leading},
+                  Button(Label(std::move(title), {.system_name = "caret-right"}),
+                         [=] { with_animation(Animation::smooth(), [&] { open = !open(); }); })
+                      .button_style(PlainButtonStyle{}),
+                  If(open, std::move(content)));
+}
+```
+
+```rust
+fn expandable_section(title: &str, content: View) -> View {
+    let open = State::new(false);
+    elg! {
+        VStack(alignment: .leading) {
+            Button(title.to_owned(), move || with_animation(Animation::smooth(0.4), || open.toggle()))
+                .button_style(PlainButtonStyle)
+            if open.get() { { content.clone() } }
+        }
+    }
+    .into_view()
+}
+```
+
+## Components
+
+A function runs as soon as you call it. A *component* is built later, when it's placed in the
+interface, so it can read the [environment](../environment/) where it ends up. A plain function
+can't do that: it runs before its view is placed, so it sees its caller's environment instead.
+
+<Lang only="cpp">
+
+A component is a type with a `View body() const`. Any such type can be used as a view:
+
+```cpp
+struct ContactRow {
+    Contact contact;
+
+    View body() const {
+        return HStack(AsyncImage(contact.avatar_url, {.content_mode = ContentMode::fill})
+                          .frame(36, 36)
+                          .clip_shape(Circle()),
+                      Text(contact.name),
+                      Spacer());
+    }
+};
+
+ScrollView(LazyVStack(ForEach(contacts, &Contact::id, [](const Contact& c) { return ContactRow{c}; })));
+```
+
+</Lang>
+
+<Lang only="rust">
+
+Mark a function `#[component]` and use it in `elg!` like any built-in view. Its parameters are
+*props*, which you set by name:
+
+```rust
+#[derive(Clone, PartialEq)]
+struct Contact { id: i64, name: String, avatar_url: String }
+
+#[component]
+fn ContactRow(contact: Contact, #[prop(default = 36.0)] size: f32) -> impl IntoView {
+    elg! {
+        HStack {
+            AsyncImage(contact.avatar_url.clone(), content_mode: .fill)
+                .frame(size, size)
+                .clip_shape(Circle())
+            Text(contact.name.clone())
+            Spacer()
+        }
+    }
+}
+
+# let contacts = State::new(Vec::<Contact>::new());
+let _ = elg! {
+    ScrollView {
+        LazyVStack {
+            ForEach(contacts, id: |c| c.id) { contact in ContactRow(contact: contact.clone()) }
+        }
+    }
+};
+```
+
+Props must be `Clone`. Leaving out a prop is a compile error unless it has a default, given with
+`#[prop(default)]` or `#[prop(default = …)]`; an `Option` prop defaults to `None`. A `Prop<T>`
+prop accepts a value, a state, or a closure, and updates as they change, just like the built-in
+views' arguments. An enum that derives `DotValues` can be passed with dot shorthand, like
+`tone: .success`.
+
+A component that takes views in a block, like a stack does, is a struct that implements
+`Component` and `ElgChildren`. The [components example](https://github.com/EleganceUI/elegance-examples/tree/main/components-rs) has one,
+along with every kind of prop.
+
+</Lang>
+
+## View modifiers
+
+A `ViewModifier` puts a set of modifiers under one name:
+
+```cpp
+class Card : public ViewModifier {
+public:
+    explicit Card(float radius = 16) : radius_(radius) {}
+
+    View body(View content) const override {
+        return content.padding(20)
+            .background(ThemeColor::surface, RoundedRectangle(radius_))
+            .shadow({.color = Color::black.opacity(0.12f), .radius = 12, .y = 4});
+    }
+
+private:
+    float radius_;
+};
+
+Text("Inside a card").modifier(Card());
+Text("Rounder").modifier(Card(24));
+```
+
+```rust
+struct Card {
+    radius: f32,
+}
+
+impl ViewModifier for Card {
+    fn body(&self, content: View) -> View {
+        elg! {
+            { content }
+                .padding(20)
+                .background_in(.surface, RoundedRectangle(self.radius))
+                .shadow(color: Color::BLACK.opacity(0.12), radius: 12, y: 4)
+        }
+        .into_view()
+    }
+}
+
+let _ = elg! {
+    VStack {
+        Text("Inside a card").modifier(Card { radius: 16.0 })
+        Text("Rounder").modifier(Card { radius: 24.0 })
+    }
+};
+```
+
+Like a component, `body` runs when the view is placed, so it can read the environment.
+
+## Your own dot modifiers
+
+To write `.card()` instead of `.modifier(Card())`, add it to every view:
+
+<Lang only="cpp">
+
+Write the declarations in a header, which Elegance includes *inside* the `View` class:
+
+```cpp title="view_extensions.h"
+View card(float corner_radius = 16) const;
+View badge_overlay(int count) const;
+```
+
+```cpp title="view_extensions.cpp"
+#include <elg/elegance.h>
+
+elg::View elg::View::card(float corner_radius) const {
+    return modifier(Card(corner_radius));
+}
+```
+
+Then tell CMake about the header:
+
+```cmake
+elegance_view_extensions(my_app view_extensions.h)
+```
+
+Every source file of `my_app` now sees the new members:
+
+```cpp
+Text("Hello").padding(8).card();
+```
+
+You can only add member functions this way. Adding data or virtual functions would change what a
+`View` is, so it's rejected when you compile.
+
+</Lang>
+
+<Lang only="rust">
+
+Define a trait with the method, and implement it for everything that can be a view. That's how
+Elegance's own modifiers work:
+
+```rust
+# struct Card { radius: f32 }
+# impl ViewModifier for Card { fn body(&self, content: View) -> View { content } }
+pub trait CardExt: IntoView + Sized {
+    fn card(self) -> View {
+        self.into_view().modifier(Card { radius: 16.0 })
+    }
+}
+
+impl<V: IntoView> CardExt for V {}
+
+let _ = elg! { Text("Hello").padding(8).card() };
+```
+
+To give it named arguments in `elg!`, like `.card(radius: 24)`, add a `card_with` method that
+takes a closure over an options struct; `elg!` turns `.card(radius: 24)` into
+`.card_with(|o| o.radius(24))`. The [components example](https://github.com/EleganceUI/elegance-examples/tree/main/components-rs) shows one.
+
+</Lang>
+
+## The modifier protocols
+
+Underneath, every modifier is one of six kinds. `ViewModifier` is the one you'll use most; the
+others plug into particular parts of Elegance:
+
+| Kind | You write | For |
+| --- | --- | --- |
+| `ViewModifier` | `body(content)` | combining other modifiers |
+| `LayoutModifier` | `size_that_fits`, `place` | taking part in layout, around one view |
+| `DecorationModifier` | `decoration`, `placement`, `alignment` | a view behind or in front, the same size as the content |
+| `EnvironmentModifier` | `apply(environment)` | changing what views inside inherit |
+| `EffectModifier` | `apply(effects)` | clipping, opacity, shadows, offsets, hit testing |
+| `EventModifier` | `make_handler()` | handling input |
+
+For example, a layout modifier that makes its content at least a certain size:
+
+```cpp
+class MinSize : public LayoutModifier {
+public:
+    MinSize(float width, float height) : width_(width), height_(height) {}
+
+    Size size_that_fits(ProposedSize proposal, const LayoutChild& content) const override {
+        const Size size = content.size_that_fits(proposal);
+        return {std::max(size.width, width_), std::max(size.height, height_)};
+    }
+
+    void place(Rect bounds, ProposedSize proposal, const LayoutChild& content) const override {
+        const Size size = content.size_that_fits(proposal);
+        content.place(aligned_position(bounds, size, Alignment::center), proposal);
+    }
+
+private:
+    float width_;
+    float height_;
+};
+
+Text("OK").modifier(MinSize(44, 44));
+```
+
+```rust
+struct MinSize {
+    width: f32,
+    height: f32,
+}
+
+impl LayoutModifier for MinSize {
+    fn size_that_fits(&self, proposal: ProposedSize, content: &LayoutChild) -> Size {
+        let size = content.size_that_fits(proposal);
+        Size::new(size.width.max(self.width), size.height.max(self.height))
+    }
+
+    fn place(&self, bounds: Rect, proposal: ProposedSize, content: &LayoutChild) {
+        let size = content.size_that_fits(proposal);
+        content.place(aligned_position(bounds, size, Alignment::CENTER), proposal);
+    }
+}
+
+let _ = elg! { Text("OK").modifier(AsLayout(MinSize { width: 44.0, height: 44.0 })) };
+```
+
+<Lang only="rust">
+
+`.modifier` takes a `ViewModifier` directly. Wrap the other kinds to say which one you mean:
+`AsLayout`, `AsDecoration`, `AsEnvironment`, `AsEffect`, or `AsEvent`.
+
+</Lang>
+
+The built-in modifiers are written exactly this way. To arrange several views, rather than wrap
+one, write a [custom layout](../custom-layouts/).

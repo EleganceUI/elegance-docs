@@ -1,0 +1,157 @@
+---
+title: Hot reload and previews
+description: "See your changes in a running window as you save, and preview views on their own with sample data."
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Lang from '../../../components/Lang.astro';
+
+Elegance has no markup language and no scripting layer: your interface is ordinary code. To see
+changes quickly, it uses *hot reload* instead. Your views are built into a separate library, and
+when you save a file, it's rebuilt and loaded into the running window a moment later.
+
+<Lang only="rust">
+
+## Previews
+
+Mark a function `#[preview]`, anywhere in your app, to preview the view it returns on its own,
+with whatever sample data you give it:
+
+```rust
+# #[derive(Clone, PartialEq)] struct Todo { id: i64, title: String, done: bool }
+# #[component] fn TodoList(todos: Vec<Todo>) -> impl IntoView { elg! { Text("Todos") } }
+# #[component] fn Root() -> impl IntoView { elg! { Text("Root") } }
+# fn sample_todos() -> Vec<Todo> { Vec::new() }
+#[preview("Empty list")]
+fn empty_list() -> impl IntoView {
+    elg! { TodoList(todos: vec![]) }
+}
+
+#[preview("Dark mode")]
+fn dark_mode() -> impl IntoView {
+    elg! { TodoList(todos: sample_todos()).color_scheme(.dark) }
+}
+
+#[preview(root)] // the whole app, for `--root`
+fn app() -> impl IntoView {
+    elg! { Root() }
+}
+```
+
+Then install `cargo elegance` once, and run it in your project:
+
+```sh
+cargo install --git https://github.com/EleganceUI/elegance-rs cargo-elegance
+
+cargo elegance preview          # a list of your previews, beside the one you pick
+cargo elegance preview --root   # the whole app
+```
+
+Edit a file in `src/` or `assets/` and save it. A small badge shows the build's progress, and any
+compiler errors; when the build succeeds, the window shows your new views. You don't need to
+split your app into a library and a binary: `cargo elegance` builds your app a second time, as a
+library the preview window can load, in `target/elegance-preview`, so your normal builds aren't
+disturbed. In those, `#[preview]` functions are left out, so they cost your app nothing.
+
+`-p`, `--bin`, `--features`, and `--release` choose what to build, as with `cargo build`, and
+`--watch` adds folders to watch besides `src/` and `assets/`.
+
+<Aside>
+Previews need Elegance built as a shared library, which `cargo elegance` asks for. That's built
+from source rather than downloaded, so the first preview takes a while.
+</Aside>
+
+### What survives a reload
+
+A reload rebuilds your views, so state they made starts over. The `preview-rs` project in
+[elegance-examples](https://github.com/EleganceUI/elegance-examples) is set up for previews, if
+you'd like to try it.
+
+</Lang>
+
+<Lang only="cpp">
+
+## Setting it up
+
+Split your app into a *views module*, a shared library with your views, and a *host*, the
+program that shows them. In CMake:
+
+```cmake
+# The views: a shared library.
+elegance_views_module(todo_views views/root.cpp views/todo_list.cpp)
+
+# The host: the program that shows them.
+add_executable(todo main.cpp)
+target_link_libraries(todo PRIVATE Elegance::Elegance)
+elegance_hot_reload(todo MODULE todo_views WATCH views)
+```
+
+`elegance_hot_reload` makes a header for the host, `todo_hot_reload.h`, which says where the
+module is, how to rebuild it, and which folders to watch (by default, the folder of the module's
+sources).
+
+In the views module, say which view is the root, once:
+
+```cpp title="views/root.cpp"
+#include <elg/elegance.h>
+
+using namespace elg;
+
+View Root() {
+    return TodoList();
+}
+
+ELG_MODULE(Root)
+```
+
+In the host, show it with `HotReload`:
+
+```cpp title="main.cpp"
+#include "todo_hot_reload.h"
+
+#include <elg/elegance.h>
+
+int main() {
+    elg::App app;
+    app.window({.title = "Todos"}, [] { return elg::HotReload(elg_hot_reload_options()); });
+    return app.run();
+}
+```
+
+Run the host and edit a file in `views/`. A small badge shows the build's progress, and any
+compiler errors; when the build succeeds, the window shows your new views.
+
+### What survives a reload
+
+State made in your views starts over when they're reloaded, since the code that made it has been
+replaced. Keep data that should last in the host, and pass it in, or put it in the
+[environment](../environment/).
+
+The host and the module must be built with the same compiler and the same Elegance, which happens
+by itself when they're in one CMake project. Elegance must be built as a shared library
+(`ELG_BUILD_SHARED`, which is the default).
+
+## Previews
+
+Previews are views shown on their own, with sample data. Write them anywhere in a views module:
+
+```cpp
+ELG_PREVIEW("Empty list") { return TodoList({}); }
+ELG_PREVIEW("Dark mode") { return TodoList(sample_todos()).color_scheme(ColorScheme::dark); }
+```
+
+To show them, set `show` to `HotReloadShow::previews`. You get a list of the module's previews
+beside the one you pick, reloaded as you edit:
+
+```cpp
+elg::HotReloadOptions options = elg_hot_reload_options();
+options.show = elg::HotReloadShow::previews;
+app.window({.title = "Previews"}, [=] { return elg::HotReload(options); });
+```
+
+A module that's only for previews has no root: `ELG_MODULE(nullptr)`.
+
+Elegance comes with a host for this, `elegance-preview`. Give it `--module <file>`,
+`--build "<command>"`, and `--watch <folder>`, and it previews any module.
+
+</Lang>

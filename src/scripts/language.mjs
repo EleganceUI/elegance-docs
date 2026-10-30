@@ -15,7 +15,15 @@ export const languageScript = `
 	try { lang = new URLSearchParams(location.search).get('lang') || localStorage.getItem(key) || 'cpp'; } catch {}
 	if (lang !== 'cpp' && lang !== 'rust') lang = 'cpp';
 	document.documentElement.dataset.lang = lang;
-	document.addEventListener('DOMContentLoaded', () => apply(document.documentElement.dataset.lang));
+	document.addEventListener('DOMContentLoaded', () => {
+		// "On this page" lists headings of both languages: give each entry its heading's language,
+		// so the same CSS hides it.
+		for (const link of document.querySelectorAll('starlight-toc a[href^="#"], mobile-starlight-toc a[href^="#"]')) {
+			const only = document.getElementById(decodeURIComponent(link.hash.slice(1)))?.closest('.elg-only-cpp, .elg-only-rust');
+			if (only) link.parentElement.classList.add(only.classList.contains('elg-only-cpp') ? 'elg-only-cpp' : 'elg-only-rust');
+		}
+		apply(document.documentElement.dataset.lang);
+	});
 	document.addEventListener('click', (event) => {
 		const button = event.target.closest && event.target.closest('[data-set-lang]');
 		if (!button) return;

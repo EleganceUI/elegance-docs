@@ -1,0 +1,119 @@
+---
+title: Debugging and errors
+description: "Look inside a running window with the inspector, read the log, handle errors, and report crashes."
+---
+
+import Lang from '../../../components/Lang.astro';
+
+## The inspector
+
+Press **F12** in any window to open the inspector for it, in a window of its own. Press F12 again,
+or close either window, to close it.
+
+- **The tree** lists everything in the window, with a summary of each (its text, a shape's corner
+  radius, how many views a stack holds, and effects such as clipping, opacity, and shadows) and
+  its size. It keeps up as the window changes.
+- **Selecting** a row highlights that view in the window, and shows where it is, the space it was
+  last offered, and its fonts, colors, fills, and strokes.
+- **Pick** outlines whatever is under the pointer; click to select it in the tree, or press Esc to
+  stop.
+- **Frame stats** show how long each frame took to prepare, how many views there are, and how
+  many shapes, letters, and paths were drawn. Effects that need extra drawing passes, which cost
+  more, are pointed out.
+
+Since it's a separate window, the inspector never changes the layout it's showing you.
+
+## Logging
+
+Elegance writes its log to the standard error output, with a prefix for each kind of message:
+
+```
+[elg:info] GPU: AMD Radeon RX 6650 XT (Direct3D 12 through WebGPU)
+[elg:warning] image: can't read assets/missing.png
+```
+
+Debug builds say more, such as which fonts were loaded and how frames reach the screen. When
+something doesn't appear, run your app from a terminal, or look at your editor's output, to see
+why.
+
+## Errors you can handle
+
+<Lang only="cpp">
+
+Elegance reports problems that are yours to handle by throwing exceptions, all derived from
+`elg::Error` (itself a `std::runtime_error`):
+
+| Exception | When |
+| --- | --- |
+| `elg::UsageError` | Elegance was used the wrong way: an icon name that doesn't exist, an SVG path that doesn't parse, `.resizable()` on something that isn't an image, state used off the UI thread. The message says what was wrong. |
+| `elg::ResourceError` | A font, sound, or other file couldn't be loaded. |
+| `elg::GpuError` | There's no suitable graphics card, it ran out of memory, or it stopped working and couldn't be recovered. |
+| `elg::PlatformError` | The operating system couldn't do what was asked. |
+
+An exception thrown by your own code, in an event handler, an effect, or a window's content, comes
+out of `app.run()` after the app has shut down cleanly, so a `try` around it catches it:
+
+```cpp
+int main() {
+    try {
+        elg::App app;
+        app.window({.title = "App"}, Root);
+        return app.run();
+    } catch (const elg::Error& e) {
+        std::fprintf(stderr, "error: %s\n", e.what());
+        return 1;
+    }
+}
+```
+
+In debug builds, each `elg::Error` also records the stack where it was thrown.
+
+</Lang>
+
+<Lang only="rust">
+
+Things that can fail for reasons outside your control, such as loading a file or opening a camera,
+return a `Result` with an `elegance::Error`. Its `kind()` says what went wrong:
+
+| Kind | When |
+| --- | --- |
+| `ErrorKind::Resource` | A font, sound, or other file couldn't be loaded. |
+| `ErrorKind::Gpu` | There's no suitable graphics card, it ran out of memory, or it stopped working and couldn't be recovered. |
+| `ErrorKind::Platform` | The operating system couldn't do what was asked. |
+| `ErrorKind::Usage` | Elegance was used the wrong way. |
+
+Using Elegance the wrong way, for example with an icon name that doesn't exist, an SVG path that
+doesn't parse, `.resizable()` on something that isn't an image, or state used off the UI thread,
+panics with a message that says what was wrong, since it's a bug in the code rather than
+something to handle.
+
+A panic in your own code, in an event handler, an effect, or a component, comes out of `run()` on
+the main thread, after the app has shut down cleanly, so it behaves like any other panic in your
+program.
+
+```rust
+# #[component] fn Root() -> impl IntoView { elg! { Text("App") } }
+fn main() -> Result<std::process::ExitCode, Error> {
+    let sound = Sound::load("assets/click.wav")?; // a missing file is an Err
+    App::new().window(WindowDesc::new("App"), Root).run()
+}
+```
+
+</Lang>
+
+## Crash reports
+
+A bug inside Elegance itself isn't something your app can handle. When Elegance finds that
+something is wrong inside it, it writes a **crash report** and stops the app, since carrying on
+could make things worse. The report says what went wrong and where in Elegance, with the stack,
+the Elegance version, and the latest lines of the log. A message tells you where the report was
+saved:
+
+| Platform | Folder |
+| --- | --- |
+| Windows | `%APPDATA%\Elegance\Elegance\crashes\` |
+| macOS | `~/Library/Application Support/Elegance/Elegance/crashes/` |
+| Linux | `~/.local/share/Elegance/Elegance/crashes/` |
+
+If you run into one, please [report it](https://github.com/EleganceUI/elegance/issues) with the
+file attached.

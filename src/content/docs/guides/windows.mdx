@@ -1,15 +1,16 @@
 ---
 title: Windows
-description: "Opening windows, their options, custom title bars, transparent windows, and controlling a window from its views."
+description: "Open windows, choose their options, draw your own title bar, use the system's translucent materials, and control a window from inside it."
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 import Example from '../../../components/Example.astro';
+import Lang from '../../../components/Lang.astro';
 
 ## The app and its windows
 
-`App` owns the application: its windows, the event loop and the render thread. Create one, add
-windows, and call `run()`, which returns when the last window closes or `quit()` is called:
+`App` is your application: its windows, its event loop, and the thread that draws. Make one, add
+windows, and run it. Running returns when the last window closes, or when you call `quit()`:
 
 ```cpp
 int main() {
@@ -20,30 +21,41 @@ int main() {
 }
 ```
 
-The content function builds the window's root view. It runs once, on the UI thread, when the
-window opens.
+```rust
+# #[component] fn Editor() -> impl IntoView { elg! { Text("Editor") } }
+# #[component] fn Palette() -> impl IntoView { elg! { Text("Palette") } }
+fn main() -> Result<std::process::ExitCode, Error> {
+    App::new()
+        .window(WindowDesc::new("Editor").size(1200, 800), Editor)
+        .window(WindowDesc::new("Palette").size(300, 500), Palette)
+        .run()
+}
+```
+
+A window's content is built once, when the window opens.
 
 ### Window options
 
-| Option | Default | Meaning |
+| Option | Default | What it does |
 | --- | --- | --- |
-| `title` | `"Elegance"` | The title bar and taskbar text |
-| `width`, `height` | 1280 × 720 | The initial size, in points |
-| `resizable` | `true` | Whether the user can resize it |
-| `min_size` | none | The smallest size the user can resize to |
-| `background` | the theme's `background` | Shown where no view draws |
-| `title_bar` | `TitleBar::system` | `TitleBar::integrated` for content under the system's controls, `TitleBar::hidden` to draw your own |
-| `system_controls_position` | macOS's | Integrated title bars: where the system's window controls go (macOS) |
-| `transparent` | `false` | The desktop shows through where nothing opaque is drawn |
-| `opacity` | 1 | The whole window's opacity |
+| title | `"Elegance"` | the text in the title bar and taskbar |
+| width, height | 1280 × 720 | the size it opens at, in points |
+| resizable | yes | whether people can resize it |
+| minimum size | none | the smallest size it can be resized to |
+| background | the theme's background | what shows where no view draws |
+| title bar | the system's | integrated, or hidden so you can draw your own (below) |
+| transparent | no | the desktop shows through where nothing opaque is drawn |
+| opacity | 1 | the whole window's opacity |
+| fullscreen | no | covers the whole display, without a frame |
+| <Lang only="cpp" inline>material</Lang><Lang only="rust" inline>material (C++ only for now)</Lang> | none | a translucent backdrop from the system (below) |
 
-Windows follow the display's scale (DPI) and move between monitors with different scales. Resizing
-is live: content lays out continuously while the edge is dragged.
+Windows follow each display's scale, including when they move to a monitor with a different one.
+Resizing is live: the content lays itself out continuously while you drag the edge.
 
-## Custom title bars
+## Your own title bar
 
-With `TitleBar::hidden` the content fills the whole window. Draw your own title bar, make it drag
-the window with `.window_drag_area()`, and add `WindowControls()`:
+With a hidden title bar, your content fills the whole window. Draw your own bar, mark it as the
+part of the window that drags it, and add the window's buttons with `WindowControls`:
 
 ```cpp
 app.window({.title = "Notes", .title_bar = TitleBar::hidden}, [] {
@@ -55,27 +67,44 @@ app.window({.title = "Notes", .title_bar = TitleBar::hidden}, [] {
 });
 ```
 
-Dragging the area moves the window and double-clicking maximizes it, like a system title bar.
-Controls inside it still work. The window's edges still resize it.
+```rust
+#[component]
+fn Notes() -> impl IntoView {
+    elg! {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Notes")
+                Spacer()
+                { WindowControls::new() }
+            }
+            .frame(height: 36)
+            .window_drag_area(true)
+            Text("Content")
+        }
+    }
+}
 
-`WindowControls` draws minimize, maximize and close buttons in the platform's style, or in the
-style you choose. It draws them only in `TitleBar::hidden` windows: wherever the system has its own
-controls, it's empty, so a layout can include it on every platform.
-
-```cpp
-WindowControls({.style = WindowControlsStyle::traffic_lights, .maximize = false})
+fn main() -> Result<std::process::ExitCode, Error> {
+    App::new().window(WindowDesc::new("Notes").title_bar(TitleBar::Hidden), Notes).run()
+}
 ```
 
-### Integrated title bars
+Dragging the bar moves the window and double-clicking it maximizes the window, just like a system
+title bar, and the controls in it still work. The window's edges still resize it.
 
-`TitleBar::integrated` keeps the system's own window controls and lets the content fill the window
-under them. On macOS that's the native traffic lights over a transparent title bar, and
-`system_controls_position` moves them (the close button's top-left corner, in points). Platforms
-without controls that sit over the content keep their system title bar, so an app never shows
-imitation buttons where real ones exist.
+`WindowControls` draws minimize, maximize, and close buttons in the platform's style, or a style
+you choose. Wherever the system shows its own buttons, it draws nothing, so the same layout works
+on every platform.
 
-`system_controls_frame()` is where the controls are, in the window's points, and is empty where
-there are none (in fullscreen, too). Keep content clear of it, reactively:
+### An integrated title bar
+
+An *integrated* title bar keeps the system's own window buttons and lets your content fill the
+window underneath them. On a Mac, that's the real traffic lights over your content, and you can
+move them. Platforms whose buttons can't sit over content keep their normal title bar, so your app
+never shows imitation buttons where real ones exist.
+
+The window tells you where its buttons are, so you can keep your content clear of them. It
+updates as that changes, for example in fullscreen, where there are none:
 
 ```cpp
 app.window({.title = "Music", .title_bar = TitleBar::integrated, .system_controls_position = Point{20, 27}},
@@ -87,29 +116,70 @@ app.window({.title = "Music", .title_bar = TitleBar::integrated, .system_control
            });
 ```
 
-For other differences between platforms, `current_platform()` (`elg/platform.h`) is
-`Platform::windows`, `macos` or `linux`, and is `constexpr`.
+```rust
+#[component]
+fn Music() -> impl IntoView {
+    let window = Environment::<WindowKey>::new();
+    elg! {
+        VStack {
+            EmptyView().frame_size(
+                move || {
+                    let controls = window.get().system_controls_frame();
+                    Size::new(0.0, controls.y + controls.height)
+                },
+                .top,
+            )
+            Text("Search")
+        }
+        .window_drag_area(true)
+    }
+}
 
-### The current window
+fn main() -> Result<std::process::ExitCode, Error> {
+    let desc = WindowDesc::new("Music").title_bar(TitleBar::Integrated).system_controls_position(20.0, 27.0);
+    App::new().window(desc, Music).run()
+}
+```
 
-`Environment<WindowKey>()` gives the window a view is in. Its readers are reactive, which helps
-title bars dim when the window isn't active:
+<Lang only="cpp">
+
+For other differences between platforms, `current_platform()` returns `Platform::windows`,
+`macos`, or `linux`, and is known at compile time.
+
+</Lang>
+
+### The window a view is in
+
+A view can get its window from the environment, to close it, or to look different when the window
+isn't the active one, as title bars do:
 
 ```cpp
 const auto window = Environment<WindowKey>();
-TitleBar()
-    .opacity([=] { return window().is_active() ? 1.f : 0.6f; });
+
+TitleBar().opacity([=] { return window().is_active() ? 1.f : 0.6f; });
 Button("Close", [=] { window().close(); });
 Text([=] { return window().is_maximized() ? "Maximized" : "Normal"; });
 ```
 
-`WindowHandle` has `close()`, `minimize()`, `toggle_maximized()`, `is_maximized()` and
-`is_active()`.
+```rust
+let window = Environment::<WindowKey>::new();
+let (w1, w2) = (window.clone(), window.clone()); // one for each closure
+
+elg! {
+    VStack {
+        Text("Title").opacity(move || if window.get().is_active() { 1.0 } else { 0.6 })
+        Button("Close", move || w1.get().close())
+        Text(move || if w2.get().is_maximized() { "Maximized" } else { "Normal" })
+    }
+}
+```
+
+A window can also be minimized and maximized from code.
 
 ## Transparent windows
 
-With `transparent = true`, the desktop shows through wherever the window's content isn't opaque.
-Combined with a hidden title bar, that gives rounded or shaped windows and translucent panels:
+A transparent window lets the desktop show through wherever its content isn't opaque. With a
+hidden title bar, that makes rounded or shaped windows and see-through panels:
 
 ```cpp
 app.window({.title = "Widget", .width = 340, .height = 190,
@@ -117,11 +187,55 @@ app.window({.title = "Widget", .width = 340, .height = 190,
            [] { return Widget().background(ThemeColor::surface, RoundedRectangle(16)); });
 ```
 
+```rust
+# #[component] fn Widget() -> impl IntoView {
+#     elg! { Text("Widget").padding(16).background_in(.surface, RoundedRectangle(16)) }
+# }
+fn main() -> Result<std::process::ExitCode, Error> {
+    let desc = WindowDesc::new("Widget").size(340, 190).title_bar(TitleBar::Hidden).transparent(true);
+    App::new().window(desc, Widget).run()
+}
+```
+
 <Aside>
-Transparency needs a compositing window system; where it isn't available the window stays opaque.
-On Windows, every window is presented through DirectComposition, which also keeps live resizing
-free of stretching.
+Transparency needs a desktop that composites windows. Where there isn't one, the window stays
+opaque.
 </Aside>
+
+## Translucent materials
+
+<Lang only="rust">
+
+The C++ API can give a window one of the system's translucent backdrops (vibrancy on macOS, Mica
+and Acrylic on Windows 11). The Rust bindings don't have it yet.
+
+</Lang>
+
+<Lang only="cpp">
+
+A window can have one of the system's translucent backdrops behind its content: the desktop and the
+windows below, blurred and tinted, like Finder's sidebar or the Windows 11 Settings app. Where your
+content and the window's background aren't opaque, it shows through:
+
+```cpp
+app.window({.title = "Files", .material = WindowMaterial::sidebar}, [] {
+    return HStack(Sidebar().frame({.width = 220}),
+                  Content().background(ThemeColor::background));
+});
+```
+
+Each platform uses its closest match:
+
+| Material | macOS | Windows 11 |
+| --- | --- | --- |
+| `sidebar` | sidebar vibrancy | Mica Alt |
+| `under_window` | under-window vibrancy | Mica |
+| `mica` | under-window vibrancy | Mica |
+| `acrylic` | HUD window vibrancy | Acrylic |
+
+On Windows 10 and Linux, the window stays opaque and draws its background as usual.
+
+</Lang>
 
 ## Example
 

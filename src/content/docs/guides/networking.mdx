@@ -1,23 +1,35 @@
 ---
 title: Networking
-description: "Using an HTTP or WebSocket library with Elegance, and images from the web."
+description: "Use the HTTP or WebSocket library you like with Elegance, and show images from the web."
 ---
 
 import Example from '../../../components/Example.astro';
+import Lang from '../../../components/Lang.astro';
 
-Elegance doesn't have its own HTTP or WebSocket API. Use an established library that you trust
-and keep up to date, such as [libcurl](https://curl.se/libcurl/),
-[Boost.Beast](https://www.boost.org/libs/beast) or [cpp-httplib](https://github.com/yhirose/cpp-httplib).
+Elegance doesn't have its own HTTP or WebSocket API. Use a well-known library that you trust and
+keep up to date:
+<Lang only="cpp" inline>[libcurl](https://curl.se/libcurl/), [Boost.Beast](https://www.boost.org/libs/beast), or [cpp-httplib](https://github.com/yhirose/cpp-httplib).</Lang>
+<Lang only="rust" inline>[ureq](https://crates.io/crates/ureq), [reqwest](https://crates.io/crates/reqwest), or [tungstenite](https://crates.io/crates/tungstenite) for WebSockets.</Lang>
 Elegance gives you two things to connect it to your views:
 
-- `post_to_ui_thread(task)` runs `task` on the UI thread, where it can write state.
+- `post_to_ui_thread(task)` runs `task` on the UI thread, where it can change state.
 - `AsyncImage(url)` downloads and shows images. See
   [Images](../images/#images-from-the-web).
 
 ## Requests on a background thread
 
-Run requests off the UI thread, so the window keeps responding. When a result arrives, hand it
-back with `post_to_ui_thread`. This example uses cpp-httplib:
+Make requests on another thread, so the window keeps responding while you wait. When the answer
+arrives, hand it back to the UI thread with `post_to_ui_thread`.
+
+<Lang only="cpp">This example uses cpp-httplib:</Lang>
+<Lang only="rust">
+
+This example uses ureq. State can only be used on the UI thread, so Rust won't let you move it to
+another thread. The [send_wrapper](https://crates.io/crates/send_wrapper) crate gets it there and
+back: the callback travels to the worker thread and back in a `SendWrapper`, and is only called
+once it's on the UI thread again.
+
+</Lang>
 
 ```cpp
 #include <httplib.h>
@@ -43,7 +55,26 @@ void get(std::string server, std::string path, std::function<void(const Body&)> 
 }
 ```
 
-Inside `done`, write state as usual. Views that read it update:
+```rust
+use send_wrapper::SendWrapper;
+
+type Body = Result<String, String>; // the body, or why there isn't one
+
+// `done` runs on the UI thread.
+fn get(url: &str, done: impl FnOnce(Body) + 'static) {
+    let url = url.to_owned();
+    let done = SendWrapper::new(done);
+    std::thread::spawn(move || {
+        let body = ureq::get(&url)
+            .call() // network, TLS, timeout, or an HTTP error status
+            .and_then(|mut response| response.body_mut().read_to_string())
+            .map_err(|error| error.to_string());
+        post_to_ui_thread(move || done.take()(body));
+    });
+}
+```
+
+Inside `done`, change state as usual, and the views that show it update:
 
 ```cpp
 const State<bool> loading(true);
@@ -57,19 +88,39 @@ get("https://api.github.com", "/zen", [=](const Body& body) {
 If([=] { return loading(); }, Progress(), Text([=] { return quote(); }));
 ```
 
-`State` is a handle. A callback that holds a copy can still write to it after the view that
-showed it has gone, and nothing shows the change. If the work is costly, or must not run once a
-view has gone, give the callback a flag to check, or use your library's cancellation.
+```rust
+# fn get(url: &str, done: impl FnOnce(Result<String, String>) + 'static) {}
+let loading = State::new(true);
+let quote = State::new(String::new());
+
+get("https://api.github.com/zen", move |body| {
+    if !quote.is_alive() {
+        return; // the view that showed it has gone
+    }
+    quote.set(body.unwrap_or_else(|error| error));
+    loading.set(false);
+});
+
+elg! {
+    if loading.get() { Progress() } else { Text("{quote}") }
+}
+```
+
+A callback can still run after the view that showed its state has gone.<Lang only="cpp" inline> Changing the state then does nothing you can see.</Lang><Lang only="rust" inline> Using the state then panics, so check `is_alive()` first, as above.</Lang>
+If the work is costly, or mustn't happen once a view has gone, give the callback a flag to check,
+or use your library's way of cancelling.
 
 ## WebSockets
 
-The same rules apply to WebSockets: run the connection on its own thread, or the library's event
-loop, and post each message to the UI thread. Boost.Beast and libcurl both support WebSockets.
+WebSockets work the same way: run the connection on its own thread, or in your library's event
+loop, and post each message to the UI thread.
+<Lang only="cpp" inline>Boost.Beast and libcurl both support WebSockets.</Lang>
 
 ## JSON
 
-Elegance doesn't include a JSON library either. Use the one you like (nlohmann/json, Glaze,
-simdjson) on the body before you post it to the UI thread, so parsing doesn't stall the window.
+Elegance doesn't include a JSON library either. Use the one you like
+(<Lang only="cpp" inline>nlohmann/json, Glaze, or simdjson</Lang><Lang only="rust" inline>serde_json</Lang>),
+and parse the body before you post it to the UI thread, so the window doesn't wait for it.
 
 ## Example
 

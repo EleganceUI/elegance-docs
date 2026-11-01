@@ -1,13 +1,13 @@
-/* The API reference (generated pages, both languages): each symbol a small block with its kind,
-   name, declaration and description; a topics table at the top of the page to find it. */
+/* The API reference (generated pages, both languages): each symbol its kind, name, declaration and
+   description; the topics at the top of the page list the symbols by kind, each name over its
+   summary. */
 
 /* The kind above a symbol's name: "struct", "fn", "class", ... */
 .sl-markdown-content .elg-kind {
-	margin: 2.25rem 0 -0.35rem;
-	font: 600 0.7rem / 1 var(--sl-font-mono);
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-	color: var(--elg-violet);
+	margin: 2.5rem 0 -0.5rem;
+	font-size: 0.9375rem;
+	font-weight: 600;
+	color: var(--sl-color-gray-3);
 }
 
 .sl-markdown-content h3:has(+ .elg-kind),
@@ -24,77 +24,80 @@
 /* API names, on reference pages only (they're the ones with kind labels). */
 .sl-markdown-content:has(.elg-kind) h3 {
 	font-family: var(--sl-font-mono);
-	font-size: 1.15rem;
+	font-size: 1.25rem;
+	font-weight: 600;
 	letter-spacing: -0.01em;
-	margin-top: 2.5rem;
 }
 
 /* Topics: what's on the page, by kind. */
 .elg-topics {
 	margin: 2rem 0 1rem;
-	padding: 1.25rem 1.25rem 0.5rem;
-	border: 1px solid var(--sl-color-hairline);
-	border-radius: var(--elg-radius);
-	background: var(--elg-surface);
 }
 
-.elg-topics > p {
-	margin: 0 0 0.5rem;
-	font-size: var(--sl-text-xs);
-	text-transform: uppercase;
-	letter-spacing: 0.07em;
-	color: var(--sl-color-gray-3);
+.sl-markdown-content .elg-topics > p {
+	margin: 1.75rem 0 0.75rem;
+	font-size: 1.3125rem;
+	font-weight: 600;
+	color: var(--sl-color-white);
+}
+
+.sl-markdown-content .elg-topics > p:first-child {
+	margin-top: 0;
 }
 
 .elg-topics table {
-	display: table;
-	width: 100%;
-	margin: 0 0 1.25rem;
-	border-collapse: collapse;
-	font-size: var(--sl-text-sm);
+	display: block;
+	margin: 0;
+	overflow: visible;
+}
+
+.elg-topics :is(thead, tbody, tr) {
+	display: block;
 }
 
 .elg-topics thead {
 	display: none;
 }
 
-.elg-topics td {
-	padding: 0.4rem 0.75rem 0.4rem 0;
+.elg-topics tr {
+	padding: 0.5rem 0;
+}
+
+.sl-markdown-content .elg-topics td {
+	display: block;
+	padding: 0;
 	border: none;
-	border-top: 1px solid var(--sl-color-hairline);
-	vertical-align: top;
 	background: transparent !important;
 }
 
-.elg-topics td:first-child {
-	white-space: nowrap;
-	width: 1%;
-	padding-right: 1.5rem;
+.sl-markdown-content .elg-topics td:first-child {
+	font-weight: 600;
 }
 
-.elg-topics td:last-child {
-	color: var(--sl-color-gray-2);
+.sl-markdown-content .elg-topics td:last-child {
+	margin-top: 0.125rem;
+	font-size: 1rem;
+	color: var(--sl-color-gray-3);
 }
 
 /* Methods: a collapsible list under the type. */
 .elg-methods {
 	margin: 1.25rem 0;
-	border: 1px solid var(--sl-color-hairline);
+	padding: 0 1.25rem;
 	border-radius: var(--elg-radius);
-	padding: 0 1rem;
-	background: var(--elg-surface);
+	background: var(--elg-fill);
 }
 
 .elg-methods > summary {
 	cursor: pointer;
-	padding: 0.75rem 0;
+	padding: 0.875rem 0;
 	font-weight: 600;
-	font-size: var(--sl-text-sm);
-	color: var(--sl-color-gray-2);
+	font-size: 1rem;
+	color: var(--sl-color-white);
 }
 
 .elg-methods[open] > summary {
-	border-bottom: 1px solid var(--sl-color-hairline);
+	border-bottom: 1px solid var(--elg-code-rule);
 	margin-bottom: 0.75rem;
 }
 
@@ -102,10 +105,19 @@
 	margin-top: 1rem !important;
 }
 
+/* Declarations inside the grey box sit on the page's colour. */
+.elg-methods > .expressive-code {
+	--elg-code-bg: var(--sl-color-black);
+}
+
 .elg-methods > p {
 	margin: 0.5rem 0 0.75rem 0.25rem;
-	font-size: var(--sl-text-sm);
+	font-size: 1rem;
 	color: var(--sl-color-gray-2);
+}
+
+.elg-methods > :last-child {
+	margin-bottom: 1.25rem;
 }
 
 /* Traits implemented, types implementing. */
@@ -113,21 +125,19 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-items: baseline;
-	gap: 0.35rem;
-	font-size: var(--sl-text-sm);
+	gap: 0.25rem 0.75rem;
+	font-size: 1rem;
 }
 
 .elg-traits > span {
-	margin-right: 0.35rem;
-	font-size: var(--sl-text-xs);
-	text-transform: uppercase;
-	letter-spacing: 0.07em;
+	font-weight: 600;
 	color: var(--sl-color-gray-3);
 }
 
 /* Enum variants. */
 .elg-members dt {
 	margin-top: 0.75rem;
+	font-weight: 600;
 }
 
 .elg-members dd {

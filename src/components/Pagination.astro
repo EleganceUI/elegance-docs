@@ -1,0 +1,62 @@
+---
+// The end of a page, as on Apple's developer site. A guide: "Topics", the API it covers in groups,
+// then "See Also", the other pages in its section. A symbol: "See Also", the others listed with it.
+// Pages outside a section, and the rest of the reference, keep Starlight's previous and next.
+import Default from '@astrojs/starlight/components/Pagination.astro';
+import Topics from './Topics.astro';
+import { api, idOf } from '../scripts/api';
+
+type Entry =
+	| { type: 'link'; label: string; href: string; isCurrent: boolean }
+	| { type: 'group'; label: string; entries: Entry[] };
+
+const { entry, sidebar } = Astro.locals.starlightRoute;
+const id = entry.id;
+
+// The innermost group with the current page in it.
+const groupOf = (entries: Entry[]): { label: string; entries: Entry[] } | undefined => {
+	for (const item of entries) {
+		if (item.type !== 'group') continue;
+		if (item.entries.some((e) => e.type === 'link' && e.isCurrent)) return item;
+		const found = groupOf(item.entries);
+		if (found) return found;
+	}
+};
+
+let topics: [string, string[]][] = [];
+let seeAlso: { title: string; pages: string[] } | undefined;
+
+const symbol = api.symbols[id];
+if (symbol) {
+	const group = api.children[symbol.parent]?.find(([, ids]) => ids.includes(id));
+	if (group) seeAlso = { title: group[0], pages: group[1].filter((other) => other !== id) };
+} else if (!id.startsWith('reference')) {
+	if (id.startsWith('guides/')) topics = api.children[id] ?? [];
+	const group = groupOf(sidebar as Entry[]);
+	if (group) {
+		seeAlso = {
+			title: group.label,
+			pages: group.entries.filter((e) => e.type === 'link' && !e.isCurrent).map((e) => idOf((e as { href: string }).href)),
+		};
+	}
+}
+---
+
+{
+	topics.length > 0 && (
+		<section class="elg-see-also">
+			<h2>Topics</h2>
+			<Topics groups={topics.map(([title, pages]) => ({ title, pages }))} />
+		</section>
+	)
+}
+{
+	seeAlso && seeAlso.pages.length > 0 ? (
+		<section class="elg-see-also">
+			<h2>See Also</h2>
+			<Topics groups={[seeAlso]} />
+		</section>
+	) : (
+		!symbol && !seeAlso && <Default />
+	)
+}

@@ -33,6 +33,7 @@ if (!source) {
 }
 // A license header, if an example has one, isn't interesting here; its description comment is.
 const code = source.replace(/^(\/\/.*\r?\n)*\/\/.*License.*\r?\n(\/\/.*\r?\n)*\r?\n/, '');
+// Captured on a Retina screen, at twice the size the window is shown at.
 const shot = shots[`../assets/examples/${name}.png`]?.default;
 const path = `${name}-cpp/main.cpp`;
 const rust = Object.entries(rustSources).find(([key]) => key.match(/([^/]+)-rs\/src\/main\.rs$/)![1] === name)?.[1];
@@ -40,7 +41,13 @@ const rustPath = `${name}-rs/src/main.rs`;
 ---
 
 <figure class="elg-example">
-	{shot && <Image src={shot} alt={`The ${name} example running`} class="elg-example-shot" />}
+	{
+		shot && (
+			<div class="elg-example-stage">
+				<Image src={shot} width={shot.width / 2} densities={[1, 2]} alt={`The ${name} example running`} class="elg-example-shot" />
+			</div>
+		)
+	}
 	{
 		collapsed ? (
 			<details>

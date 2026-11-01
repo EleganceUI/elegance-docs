@@ -1,0 +1,67 @@
+---
+// The top of a page: a breadcrumb bar, then the page's kind, title and description ("Article",
+// "State and data flow", what it covers). Guides and indexes sit on a dark band; an API page
+// (a header's, a module's, a symbol's), as a symbol's on Apple's developer site, on the page itself.
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+import { ancestorsOf, api, hrefOf, idOf, inlineHtml } from '../scripts/api';
+
+type Entry = { type: 'link'; label: string; href: string; isCurrent: boolean } | { type: 'group'; label: string; entries: Entry[] };
+
+const { entry, sidebar } = Astro.locals.starlightRoute;
+const { title, description, symbol } = entry.data;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+// The labels of the groups a page is in, outermost first, and its own label there.
+const find = (entries: Entry[], match: (link: Entry & { type: 'link' }) => boolean, path: string[] = []): { path: string[]; label: string } | undefined => {
+	for (const item of entries) {
+		if (item.type === 'link') {
+			if (match(item)) return { path, label: item.label };
+		} else {
+			const found = find(item.entries, match, [...path, item.label]);
+			if (found) return found;
+		}
+	}
+};
+
+// A symbol's page isn't in Starlight's sidebar: its crumbs are the page that lists it (its guide,
+// its class, its header), and that one's place in the sidebar.
+const id = entry.id;
+const ancestors = ancestorsOf(id).reverse(); // outermost first
+const top = ancestors[0];
+const placed = top ? find(sidebar as Entry[], (link) => idOf(link.href) === top) : find(sidebar as Entry[], (link) => link.isCurrent);
+const crumbs: { label: string; href?: string }[] = [
+	...(placed?.path ?? []).map((label) => ({ label })),
+	...ancestors.map((ancestor, i) => ({
+		label: i === 0 && placed ? placed.label : (api.symbols[ancestor]?.label ?? ancestor),
+		href: hrefOf(ancestor),
+	})),
+];
+
+const plain = symbol !== undefined || (/^reference\/(cpp|rust)\/.+/.test(id) && !/\/index$/.test(id));
+const kind =
+	symbol?.kind ??
+	(id.startsWith('reference/')
+		? plain
+			? id.startsWith('reference/cpp/')
+				? 'Header'
+				: 'Module'
+			: 'API Collection'
+		: id === 'reference'
+			? 'API Collection'
+			: id === 'examples'
+				? 'Sample Code'
+				: 'Article');
+---
+
+<nav class="elg-breadcrumbs" aria-label="Breadcrumbs">
+	<a href={`${base}/`}>Elegance</a>
+	{crumbs.map(({ label, href }) => (href ? <a {href}>{label}</a> : <span>{label}</span>))}
+	<span aria-current="page">{title}</span>
+</nav>
+<div class:list={['elg-intro', { 'elg-intro-plain': plain }]}>
+	<div class="elg-intro-inner">
+		<p class="elg-intro-kind">{kind}</p>
+		<Default />
+		{description && <p class="elg-intro-abstract" set:html={inlineHtml(description)} />}
+	</div>
+</div>

@@ -1,8 +1,120 @@
 ---
-// Starlight's sidebar with the language switch above it.
-import Default from '@astrojs/starlight/components/Sidebar.astro';
-import LanguagePicker from './LanguagePicker.astro';
+// The sidebar, as a navigator: the sections, their pages, and under a guide the API it covers
+// in groups ("Stacks", "Size and position"), each symbol with its kind (src/scripts/badges.ts).
+// Carets open and close a page's contents; the current page's are open.
+import MobileMenuFooter from 'virtual:starlight/components/MobileMenuFooter';
+import SidebarPersister from '@astrojs/starlight/components/SidebarPersister.astro';
+import NavItem from './NavItem.astro';
+import { ancestorsOf, idOf } from '../scripts/api';
+
+type Entry =
+	| { type: 'link'; label: string; href: string; isCurrent: boolean; attrs: Record<string, unknown> }
+	| { type: 'group'; label: string; entries: Entry[]; collapsed: boolean };
+
+const { sidebar, entry } = Astro.locals.starlightRoute;
+const path = [entry.id, ...ancestorsOf(entry.id)];
+
+const contains = (item: Entry): boolean =>
+	item.type === 'link' ? path.includes(idOf(item.href)) : item.entries.some(contains);
 ---
 
-<LanguagePicker />
-<Default><slot /></Default>
+<SidebarPersister>
+	<nav class="elg-nav" aria-label="Documentation" data-base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+		<ul>
+			{
+				(sidebar as Entry[]).map(function render(item: Entry) {
+					if (item.type === 'link') return <NavItem id={idOf(item.href)} label={item.label} {path} attrs={item.attrs} />;
+					const open = contains(item) || !item.collapsed;
+					return (
+						<li class="elg-nav-section">
+							<details open={open}>
+								<summary class="elg-nav-row">
+									<span class="elg-nav-toggle" aria-hidden="true">
+										<svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4" /></svg>
+									</span>
+									<span class="elg-nav-group">{item.label}</span>
+								</summary>
+								<ul>{item.entries.map(render)}</ul>
+							</details>
+						</li>
+					);
+				})
+			}
+		</ul>
+	</nav>
+</SidebarPersister>
+
+<div class="md:sl-hidden">
+	<MobileMenuFooter />
+</div>
+
+<script>
+	import { BADGES } from '../scripts/badges';
+
+	type Data = { symbols: Record<string, { label: string; kind: string }>; children: Record<string, [string, string[]][]> };
+
+	const nav = document.querySelector<HTMLElement>('.elg-nav');
+	const base = nav?.dataset.base ?? '';
+	let data: Promise<Data> | undefined;
+	const load = () => (data ??= fetch(`${base}/cpp-api.json`).then((response) => response.json()));
+
+	const caret = () => {
+		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		svg.setAttribute('viewBox', '0 0 16 16');
+		svg.setAttribute('aria-hidden', 'true');
+		svg.innerHTML = '<path d="M6 4l4 4-4 4" />';
+		return svg;
+	};
+
+	// The same rows NavItem.astro renders.
+	function item(id: string, { symbols, children }: Data): HTMLLIElement {
+		const { label, kind } = symbols[id];
+		const li = document.createElement('li');
+		const row = li.appendChild(document.createElement('div'));
+		row.className = 'elg-nav-row';
+		if (children[id]) {
+			const toggle = row.appendChild(document.createElement('button'));
+			Object.assign(toggle, { type: 'button', className: 'elg-nav-toggle' });
+			toggle.setAttribute('aria-expanded', 'false');
+			toggle.setAttribute('aria-label', `${label}: show contents`);
+			toggle.dataset.children = id;
+			toggle.append(caret());
+			const list = li.appendChild(document.createElement('ul'));
+			list.className = 'elg-nav-children';
+			list.hidden = true;
+		} else {
+			row.appendChild(document.createElement('span')).className = 'elg-nav-toggle';
+		}
+		const link = row.appendChild(document.createElement('a'));
+		link.href = `${base}/${id}/`;
+		const badge = link.appendChild(document.createElement('span'));
+		Object.assign(badge, { className: 'elg-nav-badge', title: kind, textContent: BADGES[kind] ?? '?' });
+		link.appendChild(document.createElement('span')).textContent = label;
+		return li;
+	}
+
+	nav?.addEventListener('click', async (event) => {
+		const toggle = (event.target as Element).closest<HTMLButtonElement>('.elg-nav-toggle[data-children]');
+		if (!toggle) return;
+		const list = toggle.closest('li')!.querySelector<HTMLUListElement>(':scope > .elg-nav-children')!;
+		const open = toggle.getAttribute('aria-expanded') !== 'true';
+		toggle.setAttribute('aria-expanded', String(open));
+		list.hidden = !open;
+		if (!open || list.dataset.loaded !== undefined) return;
+		list.dataset.loaded = '';
+		const api = await load();
+		for (const [heading, ids] of api.children[toggle.dataset.children!] ?? []) {
+			const li = list.appendChild(document.createElement('li'));
+			Object.assign(li, { className: 'elg-nav-heading', textContent: heading });
+			for (const id of ids) list.appendChild(item(id, api));
+		}
+	});
+
+	// Keep the current page in view, for one deep in a long list.
+	const current = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+	const pane = nav?.closest<HTMLElement>('.sidebar-pane');
+	if (current && pane) {
+		const top = current.getBoundingClientRect().top - pane.getBoundingClientRect().top;
+		if (top < 0 || top > pane.clientHeight - 40) pane.scrollTop += top - pane.clientHeight / 3;
+	}
+</script>

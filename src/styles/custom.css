@@ -1,58 +1,67 @@
-/* Elegance's look: Inter and JetBrains Mono, deep neutral surfaces, and the theme's blue with a
-   violet for gradients. Starlight's variables first, then the site's own pieces. */
+/* Elegance's docs, after Apple's developer documentation: the system font, large bold titles with
+   their group above them, sections ruled off, code on soft grey panels, and one blue for links.
+   Starlight's variables first, then its pieces, then the site's own. */
 
 :root {
-	--sl-font: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-	--sl-font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-	--sl-content-width: 46rem;
+	--sl-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+	--sl-font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono Variable', Menlo, Consolas, monospace;
+	--sl-content-width: 48rem;
+	--sl-nav-height: 3.25rem;
 	--sl-text-h1: 2.5rem;
-	--sl-text-h2: 1.6rem;
-	--sl-text-h3: 1.2rem;
+	--sl-text-h2: 1.875rem;
+	--sl-text-h3: 1.375rem;
+	--sl-text-h4: 1.125rem;
+	--sl-line-height-headings: 1.15;
 
-	--elg-blue: #4d8dff;
-	--elg-violet: #a083ff;
-	--elg-gradient: linear-gradient(115deg, #5b9bff 0%, #8f7dff 55%, #c487ff 100%);
 	--elg-radius: 0.75rem;
 
-	/* Dark (the default). */
-	--sl-color-accent-low: #102446;
-	--sl-color-accent: #5a98ff;
-	--sl-color-accent-high: #cfe0ff;
-	--sl-color-white: #f4f6fb;
-	--sl-color-gray-1: #e3e7ef;
-	--sl-color-gray-2: #c3c9d6;
-	--sl-color-gray-3: #8e97a8;
-	--sl-color-gray-4: #5c6577;
-	--sl-color-gray-5: #333a48;
-	--sl-color-gray-6: #1b2029;
-	--sl-color-black: #0f1218;
-	--sl-color-bg-nav: #0f1218;
-	--sl-color-bg-sidebar: #0f1218;
-	--sl-color-hairline: #232936;
-	--sl-color-hairline-light: #2b3241;
-	--elg-surface: #151a23;
-	--elg-surface-raised: #1b212c;
+	/* Dark. */
+	--sl-color-accent-low: #0a2742;
+	--sl-color-accent: #2997ff;
+	--sl-color-accent-high: #2997ff;
+	--sl-color-white: #f5f5f7;
+	--sl-color-gray-1: #e8e8ed;
+	--sl-color-gray-2: #d2d2d7;
+	--sl-color-gray-3: #a1a1a6;
+	--sl-color-gray-4: #86868b;
+	--sl-color-gray-5: #424245;
+	--sl-color-gray-6: #1d1d1f;
+	--sl-color-black: #000000;
+	--sl-color-bg-nav: #000000;
+	--sl-color-bg-sidebar: #000000;
+	--sl-color-hairline: #2c2c2e;
+	--sl-color-hairline-light: #2c2c2e;
+	--sl-color-hairline-shade: #000000;
+	--elg-fill: #1d1d1f;
+	--elg-fill-strong: #2c2c2e;
+	--elg-code-bg: #1d1d1f;
+	--elg-code-rule: #2c2c2e;
+	--elg-band: #1d1d1f;
 }
 
 :root[data-theme='light'] {
-	--sl-color-accent-low: #e3edff;
-	--sl-color-accent: #1f63e0;
-	--sl-color-accent-high: #0f2f6e;
-	--sl-color-white: #10141c;
-	--sl-color-gray-1: #1f2633;
-	--sl-color-gray-2: #3a4354;
-	--sl-color-gray-3: #5d6678;
-	--sl-color-gray-4: #8b94a6;
-	--sl-color-gray-5: #c9cfda;
-	--sl-color-gray-6: #edf0f5;
-	--sl-color-gray-7: #f6f8fb;
+	--sl-color-accent-low: #e8f1fb;
+	--sl-color-accent: #0066cc;
+	--sl-color-accent-high: #0066cc;
+	--sl-color-white: #1d1d1f;
+	--sl-color-gray-1: #1d1d1f;
+	--sl-color-gray-2: #333336;
+	--sl-color-gray-3: #6e6e73;
+	--sl-color-gray-4: #86868b;
+	--sl-color-gray-5: #d2d2d7;
+	--sl-color-gray-6: #f5f5f7;
+	--sl-color-gray-7: #fafafc;
 	--sl-color-black: #ffffff;
 	--sl-color-bg-nav: #ffffff;
-	--sl-color-bg-sidebar: #fbfcfd;
-	--sl-color-hairline: #e6e9ef;
-	--sl-color-hairline-light: #eef1f5;
-	--elg-surface: #f6f8fb;
-	--elg-surface-raised: #ffffff;
+	--sl-color-bg-sidebar: #ffffff;
+	--sl-color-hairline: #d2d2d7;
+	--sl-color-hairline-light: #e8e8ed;
+	--sl-color-hairline-shade: #d2d2d7;
+	--elg-fill: #f5f5f7;
+	--elg-fill-strong: #e8e8ed;
+	--elg-code-bg: #f5f5f7;
+	--elg-code-rule: #e3e3e8;
+	--elg-band: #1d1d1f;
 }
 
 /* --- Type --- */
@@ -65,120 +74,518 @@ pre,
 }
 
 body {
-	font-feature-settings: 'cv11', 'ss01', 'ss03';
 	-webkit-font-smoothing: antialiased;
 }
 
-.sl-markdown-content :is(h1, h2, h3, h4) {
-	letter-spacing: -0.015em;
-	font-weight: 650;
+.sl-markdown-content {
+	font-size: 1.0625rem;
+	line-height: 1.6;
+	color: var(--sl-color-white);
 }
 
-.sl-markdown-content h2 {
+/* --- The top of a page: breadcrumbs, then its kind, title and description on a dark band --- */
+
+/* The panel holding them runs edge to edge; its contents line up with the text below. */
+.content-panel:has(.elg-intro) {
+	padding: 0;
+}
+
+.content-panel:has(.elg-intro) > .sl-container {
+	max-width: none;
+	margin: 0;
+}
+
+.elg-breadcrumbs {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem 0.5rem;
+	padding: 0.75rem var(--sl-content-pad-x);
+	border-bottom: 1px solid var(--sl-color-hairline);
+	font-size: var(--sl-text-sm);
+	color: var(--sl-color-gray-3);
+}
+
+.elg-breadcrumbs > * + *::before {
+	content: '›';
+	margin-inline-end: 0.5rem;
+	color: var(--sl-color-gray-4);
+}
+
+.elg-breadcrumbs a {
+	color: var(--sl-color-gray-3);
+	text-decoration: none;
+}
+
+.elg-breadcrumbs a:hover {
+	color: var(--sl-color-white);
+}
+
+.elg-breadcrumbs [aria-current='page'] {
+	color: var(--sl-color-white);
+}
+
+.sl-container > .elg-intro {
+	margin-top: 0;
+	padding: 3rem var(--sl-content-pad-x) 3.25rem;
+	background: var(--elg-band);
+	color: #f5f5f7;
+}
+
+.elg-intro-inner {
+	max-width: var(--sl-content-width);
+	margin-inline: auto;
+}
+
+.elg-intro-kind {
+	margin: 0 0 0.5rem;
+	font-size: 1.0625rem;
+	font-weight: 600;
+	color: #a1a1a6;
+}
+
+.elg-intro h1#_top {
+	margin: 0;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	color: #f5f5f7;
+}
+
+.elg-intro-abstract {
+	margin: 1rem 0 0;
+	max-width: 40rem;
+	font-size: 1.3125rem;
+	line-height: 1.45;
+	color: #f5f5f7;
+}
+
+/* A header's or a module's page: the same, on the page. */
+.sl-container > .elg-intro-plain {
+	padding-bottom: 0.5rem;
+	background: none;
+}
+
+.elg-intro-plain .elg-intro-kind {
+	color: var(--sl-color-gray-3);
+}
+
+.elg-intro-plain :is(h1#_top, .elg-intro-abstract) {
+	color: var(--sl-color-white);
+}
+
+/* --- Headings --- */
+
+.sl-markdown-content :is(h2, h3, h4) {
+	font-weight: 700;
+	letter-spacing: -0.015em;
+	color: var(--sl-color-white);
+}
+
+.sl-markdown-content h3,
+.sl-markdown-content h4 {
+	font-weight: 600;
+}
+
+.sl-markdown-content .sl-heading-wrapper.level-h2 {
 	margin-top: 2.75rem;
-	padding-top: 1.25rem;
+}
+
+.sl-markdown-content .sl-heading-wrapper.level-h3 {
+	margin-top: 2rem;
+}
+
+.sl-markdown-content .sl-heading-wrapper:first-child {
+	margin-top: 0.5rem;
+}
+
+/* A section (Overview, Topics, See Also): larger, and ruled off from what's above it. */
+.sl-markdown-content .elg-section,
+.elg-see-also h2 {
+	font-size: 2rem;
+}
+
+.sl-markdown-content .sl-heading-wrapper:has(> .elg-section):not(:first-child) {
+	margin-top: 3.5rem;
+	padding-top: 2.5rem;
 	border-top: 1px solid var(--sl-color-hairline);
 }
 
-.sl-markdown-content h2:first-child {
-	border-top: none;
-	padding-top: 0;
+.sl-markdown-content .sl-heading-wrapper:has(> .elg-section) + * {
+	margin-top: 1.25rem;
 }
 
-h1#_top {
-	letter-spacing: -0.025em;
+/* See Also, at the end of a guide. */
+.elg-see-also {
+	margin-top: 0;
+	padding-top: 2.5rem;
+	border-top: 1px solid var(--sl-color-hairline);
+}
+
+.elg-see-also h2 {
+	margin: 0 0 1.5rem;
 	font-weight: 700;
+	letter-spacing: -0.015em;
+	line-height: var(--sl-line-height-headings);
+	color: var(--sl-color-white);
 }
 
+/* Topics: a group's name on the left, its pages on the right, each over its description. */
+.elg-topic-group {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 0.5rem 2rem;
+	padding: 1.75rem 0;
+}
+
+.elg-topic-group + .elg-topic-group {
+	border-top: 1px solid var(--sl-color-hairline);
+}
+
+.elg-topic-group:first-child {
+	padding-top: 0.5rem;
+}
+
+@media (min-width: 50rem) {
+	.elg-topic-group {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+	}
+}
+
+.elg-topic-group h3 {
+	margin: 0;
+	font-size: 1.3125rem;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	line-height: 1.3;
+	color: var(--sl-color-white);
+}
+
+.elg-topic-group ul {
+	display: grid;
+	gap: 1.25rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.elg-topic-group a {
+	font-size: 1.0625rem;
+	font-weight: 600;
+	color: var(--sl-color-accent);
+	text-decoration: none;
+}
+
+.elg-topic-group a:hover {
+	text-decoration: underline;
+}
+
+.elg-topic-group p {
+	margin: 0.25rem 0 0;
+	font-size: 1rem;
+	line-height: 1.5;
+	color: var(--sl-color-gray-3);
+}
+
+/* Inline code: the monospaced face and nothing else. */
 .sl-markdown-content :not(pre) > code {
-	padding: 0.1em 0.35em;
-	border-radius: 0.35rem;
-	background: var(--elg-surface-raised);
-	border: 1px solid var(--sl-color-hairline);
-	font-size: 0.86em;
+	padding: 0;
+	background: none;
+	font-size: 0.94em;
+	color: inherit;
 }
 
-.sl-markdown-content a:not(:where(.not-content *)) {
-	text-underline-offset: 0.2em;
-	text-decoration-thickness: 1px;
+.sl-markdown-content a {
+	text-decoration: none;
 }
 
-/* Lead paragraph: the first one on a guide reads as its summary. */
-.sl-markdown-content > p:first-of-type {
-	font-size: 1.08rem;
-	color: var(--sl-color-gray-2);
+.sl-markdown-content a:hover {
+	text-decoration: underline;
+	text-underline-offset: 0.15em;
+}
+
+.sl-markdown-content :is(th, td) {
+	padding-inline: 0 1.25rem;
+	border-bottom-color: var(--sl-color-hairline);
+}
+
+.sl-markdown-content th {
+	font-size: var(--sl-text-sm);
+	color: var(--sl-color-gray-3);
+	font-weight: 600;
 }
 
 /* --- Chrome --- */
 
 header.header {
-	backdrop-filter: saturate(1.4) blur(12px);
-	background: color-mix(in srgb, var(--sl-color-bg-nav) 82%, transparent);
 	border-bottom-color: var(--sl-color-hairline);
 }
 
 .site-title {
-	font-weight: 650;
-	letter-spacing: -0.02em;
+	color: var(--sl-color-white);
+	font-size: 1.0625rem;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+.site-title img {
+	height: 1.5rem;
+}
+
+site-search button[data-open-modal] {
+	border: none;
+	border-radius: 0.5rem;
+	background: var(--elg-fill);
+	color: var(--sl-color-gray-3);
 }
 
 .sidebar-pane {
 	border-inline-end-color: var(--sl-color-hairline);
 }
 
-/* The current page: a tint of the accent rather than a solid block. */
-.sidebar-content a[aria-current='page'],
-.sidebar-content a[aria-current='page']:hover,
-.sidebar-content a[aria-current='page']:focus {
-	background: var(--sl-color-accent-low);
-	color: var(--sl-color-accent-high);
+/* The intro above ends the top panel; no rule between them. */
+.content-panel + .content-panel {
+	border-top: none;
+	padding-top: 2.5rem;
+}
+
+/* The sidebar, as a navigator (src/components/Sidebar.astro): carets on the left, an icon or a
+   kind badge before each name, group headings in grey, the current page on a grey fill. */
+.elg-nav ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.elg-nav ul ul {
+	padding-inline-start: 0.875rem;
+}
+
+.elg-nav-section + .elg-nav-section {
+	margin-top: 0.25rem;
+}
+
+.elg-nav-row {
+	display: flex;
+	align-items: center;
+	gap: 0.125rem;
+	min-width: 0;
+}
+
+.elg-nav summary {
+	cursor: pointer;
+	list-style: none;
+	padding-block: 0.375rem;
+	user-select: none;
+}
+
+.elg-nav summary::-webkit-details-marker {
+	display: none;
+}
+
+.elg-nav-toggle {
+	all: unset;
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 1.125rem;
+	height: 1.125rem;
+	border-radius: 0.25rem;
+	color: var(--sl-color-gray-3);
+	cursor: pointer;
+}
+
+span.elg-nav-toggle:empty {
+	cursor: default;
+}
+
+.elg-nav-toggle svg {
+	width: 0.75rem;
+	height: 0.75rem;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transition: transform 0.15s ease;
+}
+
+.elg-nav-toggle[aria-expanded='true'] svg,
+.elg-nav details[open] > summary .elg-nav-toggle svg {
+	transform: rotate(90deg);
+}
+
+.elg-nav-toggle:focus-visible {
+	outline: 2px solid var(--sl-color-accent);
+}
+
+.elg-nav-group {
+	font-size: var(--sl-text-sm);
 	font-weight: 600;
-	border-radius: 0.4rem;
+	color: var(--sl-color-white);
 }
 
-.sidebar-content a {
-	border-radius: 0.4rem;
+.elg-nav a {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 0.5rem;
+	min-width: 0;
+	padding: 0.25rem 0.5rem;
+	border-radius: 0.375rem;
+	font-size: var(--sl-text-sm);
+	line-height: 1.35;
+	color: var(--sl-color-white);
+	text-decoration: none;
 }
 
-/* --- The language switch --- */
+.elg-nav a > span:last-child {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.elg-nav a:hover {
+	background: var(--elg-fill);
+}
+
+.elg-nav a[aria-current='page'] {
+	background: var(--elg-fill-strong);
+	font-weight: 600;
+}
+
+.elg-nav-icon {
+	flex: none;
+	width: 1rem;
+	height: 1rem;
+	fill: none;
+	stroke: var(--sl-color-gray-3);
+	stroke-width: 1.2;
+	stroke-linejoin: round;
+	stroke-linecap: round;
+}
+
+/* A symbol's kind: a letter in a small outlined square. */
+.elg-nav-badge {
+	flex: none;
+	display: grid;
+	place-items: center;
+	min-width: 1rem;
+	height: 1rem;
+	padding-inline: 0.125rem;
+	border: 1px solid var(--sl-color-gray-4);
+	border-radius: 0.1875rem;
+	font: 600 0.625rem / 1 var(--sl-font);
+	color: var(--sl-color-gray-3);
+}
+
+.elg-nav-heading {
+	padding: 0.625rem 0 0.25rem 1.75rem;
+	font-size: var(--sl-text-sm);
+	font-weight: 500;
+	color: var(--sl-color-gray-3);
+}
+
+/* On this page. */
+starlight-toc h2,
+mobile-starlight-toc h2 {
+	font-size: 0.8125rem;
+	font-weight: 600;
+	color: var(--sl-color-gray-3);
+}
+
+starlight-toc a {
+	color: var(--sl-color-gray-3);
+}
+
+starlight-toc a:hover,
+starlight-toc a[aria-current='true'] {
+	color: var(--sl-color-white);
+}
+
+/* Previous and next. */
+.pagination-links a {
+	border: none;
+	border-radius: var(--elg-radius);
+	background: var(--elg-fill);
+	box-shadow: none;
+}
+
+.pagination-links a:hover {
+	background: var(--elg-fill-strong);
+}
+
+.pagination-links .link-title {
+	font-size: var(--sl-text-base);
+	font-weight: 600;
+	color: var(--sl-color-accent);
+}
+
+/* Asides: a rounded, tinted box with its kind in bold, no icon. Notes are grey. */
+.starlight-aside {
+	padding: 1rem 1.25rem;
+	border: 1px solid var(--sl-color-asides-border);
+	border-radius: var(--elg-radius);
+	font-size: 1rem;
+}
+
+.starlight-aside--note {
+	--sl-color-asides-border: var(--sl-color-gray-5);
+	--sl-color-asides-text-accent: var(--sl-color-white);
+	background: var(--elg-fill);
+}
+
+.starlight-aside__title {
+	font-size: 1rem;
+	font-weight: 600;
+}
+
+.starlight-aside__icon {
+	display: none;
+}
+
+/* Link cards: a filled tile. */
+.sl-link-card {
+	border: none;
+	border-radius: var(--elg-radius);
+	background: var(--elg-fill);
+	box-shadow: none;
+}
+
+.sl-link-card:hover {
+	background: var(--elg-fill-strong);
+}
+
+/* --- The language switch, in the header --- */
 
 .elg-lang-picker {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: 0.75rem;
-	margin: 0 0 1.25rem;
-	padding: 0.5rem 0.5rem 0.5rem 0.75rem;
-	border: 1px solid var(--sl-color-hairline);
-	border-radius: var(--elg-radius);
-	background: var(--elg-surface);
+	gap: 0.625rem;
 }
 
 .elg-lang-picker-label {
-	font-size: var(--sl-text-xs);
-	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
+	font-size: var(--sl-text-sm);
 	color: var(--sl-color-gray-3);
 }
 
 .elg-lang-segments {
 	display: inline-flex;
-	padding: 0.2rem;
-	border-radius: 0.55rem;
-	background: var(--sl-color-gray-6);
-	gap: 0.15rem;
+	padding: 0.125rem;
+	border-radius: 0.5rem;
+	background: var(--elg-fill);
 }
 
 .elg-lang-segments button,
 .elg-lang-tab {
 	all: unset;
 	cursor: pointer;
-	font: 600 var(--sl-text-xs) / 1 var(--sl-font);
+	font: 500 var(--sl-text-sm) / 1 var(--sl-font);
 	color: var(--sl-color-gray-3);
-	padding: 0.4rem 0.75rem;
-	border-radius: 0.4rem;
-	transition: color 0.15s, background 0.15s;
+}
+
+.elg-lang-segments button {
+	padding: 0.3125rem 0.75rem;
+	border-radius: 0.375rem;
 }
 
 .elg-lang-segments button:hover,
@@ -192,41 +599,47 @@ header.header {
 	outline-offset: 1px;
 }
 
-:root[data-lang='cpp'] [data-set-lang='cpp'],
-:root[data-lang='rust'] [data-set-lang='rust'],
-:root:not([data-lang]) [data-set-lang='cpp'] {
+:root[data-lang='cpp'] .elg-lang-segments [data-set-lang='cpp'],
+:root[data-lang='rust'] .elg-lang-segments [data-set-lang='rust'],
+:root:not([data-lang]) .elg-lang-segments [data-set-lang='cpp'] {
 	color: var(--sl-color-white);
-	background: var(--elg-surface-raised);
-	box-shadow: 0 1px 2px rgb(0 0 0 / 0.25), inset 0 0 0 1px var(--sl-color-hairline-light);
+	background: var(--elg-fill-strong);
+	font-weight: 600;
 }
 
-/* A sample in both languages: tabs on its top edge, the other language's code hidden. */
+/* A sample in both languages: the language names along the top of the panel, the other
+   language's code hidden. */
 .elg-lang-pair {
-	position: relative;
 	margin-top: 1.5rem;
 }
 
 .elg-lang-tabs {
 	display: flex;
-	gap: 0.15rem;
-	position: absolute;
-	top: -0.25rem;
-	right: 0.5rem;
-	transform: translateY(-50%);
-	z-index: 1;
-	padding: 0.15rem;
-	border-radius: 0.5rem;
-	border: 1px solid var(--sl-color-hairline);
-	background: var(--sl-color-black);
+	gap: 1.25rem;
+	padding: 0.75rem 1.25rem 0.625rem;
+	border-bottom: 1px solid var(--elg-code-rule);
+	border-radius: var(--elg-radius) var(--elg-radius) 0 0;
+	background: var(--elg-code-bg);
 }
 
 .elg-lang-tab {
-	padding: 0.3rem 0.6rem;
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
+}
+
+:root[data-lang='cpp'] .elg-lang-tab[data-set-lang='cpp'],
+:root[data-lang='rust'] .elg-lang-tab[data-set-lang='rust'],
+:root:not([data-lang]) .elg-lang-tab[data-set-lang='cpp'] {
+	color: var(--sl-color-white);
+	font-weight: 600;
 }
 
 .elg-lang-pair > .expressive-code {
 	margin-top: 0 !important;
+}
+
+.elg-lang-pair > .expressive-code :is(.frame, pre, .header) {
+	border-top-left-radius: 0 !important;
+	border-top-right-radius: 0 !important;
 }
 
 :root:not([data-lang='rust']) .elg-lang-pair > .expressive-code:has(pre[data-language='rust']),
@@ -242,22 +655,25 @@ header.header {
 	margin: 2rem 0;
 }
 
+/* The app's window on a plain backdrop. */
+.elg-example-stage {
+	display: flex;
+	justify-content: center;
+	padding: 1rem; /* the window's shadow adds the rest */
+	margin-bottom: 1rem;
+	border-radius: var(--elg-radius);
+	background: var(--elg-fill);
+}
+
 .elg-example-shot {
 	display: block;
 	max-width: 100%;
 	height: auto;
-	margin: 0 auto 1rem;
-	border-radius: var(--elg-radius);
-	box-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 20px 50px -20px rgb(0 0 0 / 0.55);
 }
 
 .elg-example details summary {
 	cursor: pointer;
 	margin-bottom: 0.75rem;
-}
-
-/* Asides: quieter. */
-.starlight-aside {
-	border-radius: var(--elg-radius);
-	border-inline-start-width: 3px;
+	font-size: 1rem;
+	color: var(--sl-color-accent);
 }

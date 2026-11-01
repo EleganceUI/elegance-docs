@@ -1,0 +1,68 @@
+---
+// One row of the sidebar: a page, with a caret if it lists others (a guide its symbols, a class
+// its members), its icon or kind, and its name. What it lists is rendered only when it's open,
+// on the way to the current page; Sidebar.astro's script fills in the rest when opened.
+import { api, hrefOf } from '../scripts/api';
+import { BADGES } from '../scripts/badges';
+
+interface Props {
+	id: string;
+	label: string;
+	// The ids on the way to the current page, the page itself first.
+	path: string[];
+	attrs?: Record<string, unknown>;
+}
+
+const { id, label, path, attrs = {} } = Astro.props;
+const groups = api.children[id];
+const open = groups !== undefined && path.includes(id);
+const kind = api.symbols[id]?.kind;
+const icon = kind ? 'badge' : id === 'examples' ? 'sample' : 'article';
+---
+
+<li>
+	<div class="elg-nav-row">
+		{
+			groups ? (
+				<button type="button" class="elg-nav-toggle" aria-expanded={String(open)} data-children={id} aria-label={`${label}: show contents`}>
+					<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
+				</button>
+			) : (
+				<span class="elg-nav-toggle" />
+			)
+		}
+		<a href={hrefOf(id)} aria-current={path[0] === id ? 'page' : undefined} {...attrs}>
+			{icon === 'badge' && <span class="elg-nav-badge" title={kind}>{BADGES[kind!] ?? '?'}</span>}
+			{
+				icon === 'article' && (
+					<svg class="elg-nav-icon" viewBox="0 0 16 16" aria-hidden="true">
+						<path d="M4 1.5h5.5L12.5 4.5v10h-8.5z M9.5 1.5v3h3 M6.5 8h4 M6.5 10.5h4" />
+					</svg>
+				)
+			}
+			{
+				icon === 'sample' && (
+					<svg class="elg-nav-icon" viewBox="0 0 16 16" aria-hidden="true">
+						<path d="M6 3C4.5 3 4.5 4 4.5 5.5S4 8 3 8c1 0 1.5.5 1.5 2.5S4.5 13 6 13 M10 3c1.5 0 1.5 1 1.5 2.5S12 8 13 8c-1 0-1.5.5-1.5 2.5S11.5 13 10 13" />
+					</svg>
+				)
+			}
+			<span>{label}</span>
+		</a>
+	</div>
+	{
+		groups && (
+			<ul class="elg-nav-children" hidden={!open} data-loaded={open ? '' : undefined}>
+				{open &&
+					groups.map(([heading, ids]) => (
+						<>
+							<li class="elg-nav-heading">{heading}</li>
+							{ids.map((child) => (
+								<Astro.self id={child} label={api.symbols[child].label} {path} />
+							))}
+						</>
+					))}
+			</ul>
+		)
+	}
+</li>

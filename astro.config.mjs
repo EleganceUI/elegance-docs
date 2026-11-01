@@ -6,6 +6,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { eleganceDir, examplesDir, rustDir } from './scripts/paths.mjs';
 import remarkLanguagePairs from './src/plugins/remark-language-pairs.mjs';
+import remarkSections from './src/plugins/remark-sections.mjs';
 import { languageScript } from './src/scripts/language.mjs';
 
 // Where the site is hosted. For GitHub Pages under a repository, set DOCS_SITE to
@@ -16,7 +17,7 @@ const base = process.env.DOCS_BASE || '/';
 export default defineConfig({
 	site,
 	base,
-	markdown: { remarkPlugins: [remarkLanguagePairs] },
+	markdown: { remarkPlugins: [remarkLanguagePairs, remarkSections] },
 	// The examples' sources come from the elegance-examples checkout (scripts/paths.mjs), reached
 	// as @examples.
 	vite: {
@@ -27,7 +28,7 @@ export default defineConfig({
 		starlight({
 			title: 'Elegance',
 			description: 'Declarative, reactive desktop UI for C++ and Rust, drawn on the GPU.',
-			logo: { src: './src/assets/logo.svg', replacesTitle: false },
+			logo: { light: './src/assets/logo-light.svg', dark: './src/assets/logo-dark.svg', replacesTitle: false },
 			favicon: '/favicon.svg',
 			customCss: [
 				'@fontsource-variable/inter',
@@ -36,13 +37,43 @@ export default defineConfig({
 				'./src/styles/reference.css',
 				'./src/styles/home.css',
 			],
-			components: { Sidebar: './src/components/Sidebar.astro', Hero: './src/components/Hero.astro' },
+			components: {
+				Hero: './src/components/Hero.astro',
+				PageTitle: './src/components/PageTitle.astro',
+				Pagination: './src/components/Pagination.astro',
+				Sidebar: './src/components/Sidebar.astro',
+				// The header's right side, where the language switch goes.
+				SocialIcons: './src/components/LanguagePicker.astro',
+			},
 			head: [{ tag: 'script', content: languageScript }],
 			lastUpdated: false,
-			tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
+			// No "On this page": a page's sections are few, and its intro says what it covers.
+			tableOfContents: false,
 			expressiveCode: {
 				themes: ['github-dark-default', 'github-light-default'],
-				styleOverrides: { borderRadius: '0.5rem' },
+				styleOverrides: {
+					borderRadius: '0.75rem',
+					borderColor: 'var(--elg-code-bg)',
+					codeBackground: 'var(--elg-code-bg)',
+					codeFontSize: '0.875rem',
+					codeLineHeight: '1.6',
+					codePaddingBlock: '1.125rem',
+					codePaddingInline: '1.25rem',
+					frames: {
+						shadowColor: 'transparent',
+						frameBoxShadowCssValue: 'none',
+						editorTabBarBackground: 'var(--elg-code-bg)',
+						editorTabBarBorderBottomColor: 'var(--elg-code-rule)',
+						editorActiveTabBackground: 'var(--elg-code-bg)',
+						editorActiveTabBorderColor: 'transparent',
+						editorActiveTabIndicatorTopColor: 'transparent',
+						editorActiveTabIndicatorBottomColor: 'transparent',
+						editorActiveTabForeground: 'var(--sl-color-gray-3)',
+						terminalTitlebarBackground: 'var(--elg-code-bg)',
+						terminalTitlebarBorderBottomColor: 'var(--elg-code-rule)',
+						terminalBackground: 'var(--elg-code-bg)',
+					},
+				},
 				defaultProps: { wrap: false },
 			},
 			sidebar: [

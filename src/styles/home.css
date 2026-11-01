@@ -1,297 +1,178 @@
-/* The landing page: the hero (src/components/Hero.astro) and the sections in index.mdx. Wider than
-   the reading column, which the splash template otherwise keeps it to. */
+/* The home page (index.mdx, src/components/Hero.astro): a dark banner across the page, then the
+   overview, the topics, and the sample code in a wider column than a guide's. */
+
+:root[data-has-hero]:has(.elg-hero) {
+	--sl-content-width: 68rem;
+	overflow-x: clip;
+}
+
+/* --- The banner --- */
 
 .elg-hero {
+	/* Out to the edges of the page, whatever the column. */
+	margin: -1.5rem calc(50% - 50vw) 0;
+	padding: 4rem var(--sl-content-pad-x) 4.5rem;
+	background: var(--elg-band);
+	color: #f5f5f7;
+}
+
+/* The banner already ends a section; the first heading needs no rule of its own. */
+:root[data-has-hero] .sl-markdown-content > .sl-heading-wrapper:first-child {
+	margin-top: 1rem;
+}
+
+.elg-hero-inner {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	gap: 3rem;
 	align-items: center;
-	padding: 2.5rem 0 4rem;
-	position: relative;
+	max-width: 68rem;
+	margin-inline: auto;
 }
 
-/* A soft glow behind the hero, in the brand's gradient. */
-.elg-hero::before {
-	content: '';
-	position: absolute;
-	inset: -6rem 0 auto;
-	height: 34rem;
-	background:
-		radial-gradient(40rem 20rem at 70% 30%, rgb(124 109 255 / 0.18), transparent 70%),
-		radial-gradient(30rem 18rem at 20% 10%, rgb(77 141 255 / 0.14), transparent 70%);
-	pointer-events: none;
-	z-index: -1;
-}
-
-@media (min-width: 72rem) {
-	.elg-hero-window {
-		right: -1.5rem;
-	}
-
-	.elg-hero {
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-		gap: 4rem;
-		padding: 4rem 0 5rem;
+@media (min-width: 56rem) {
+	.elg-hero-inner {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
 	}
 }
 
 .elg-hero-eyebrow {
-	display: inline-block;
-	margin: 0 0 1.25rem;
-	padding: 0.35rem 0.8rem;
-	border: 1px solid var(--sl-color-hairline-light);
-	border-radius: 999px;
-	background: var(--elg-surface);
-	font-size: var(--sl-text-xs);
+	margin: 0 0 0.375rem;
+	font-size: 1.0625rem;
 	font-weight: 600;
-	letter-spacing: 0.04em;
-	color: var(--sl-color-gray-2);
+	color: #a1a1a6;
 }
 
 .elg-hero h1 {
 	margin: 0;
-	font-size: clamp(2.4rem, 5vw, 3.6rem);
+	font-size: clamp(2.75rem, 6vw, 3.5rem);
 	line-height: 1.05;
-	font-weight: 750;
-	letter-spacing: -0.035em;
-	background: linear-gradient(180deg, var(--sl-color-white) 30%, var(--sl-color-gray-2));
-	-webkit-background-clip: text;
-	background-clip: text;
-	color: transparent;
+	font-weight: 700;
+	letter-spacing: -0.025em;
+	color: #f5f5f7;
 }
 
 .elg-hero-tagline {
-	margin: 1.5rem 0 0;
-	max-width: 34rem;
-	font-size: 1.15rem;
-	line-height: 1.65;
-	color: var(--sl-color-gray-2);
+	margin: 1rem 0 0;
+	max-width: 36rem;
+	font-size: 1.3125rem;
+	line-height: 1.45;
+	color: #f5f5f7;
+}
+
+.elg-hero-facts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem 2.5rem;
+	margin: 2rem 0 0;
+	font-size: 0.875rem;
+}
+
+.elg-hero-facts dt {
+	color: #86868b;
+}
+
+.elg-hero-facts dd {
+	margin: 0.125rem 0 0;
+	font-weight: 600;
+	color: #f5f5f7;
 }
 
 .elg-hero-actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0.75rem 1.25rem;
+	gap: 0.5rem 2rem;
+	margin: 2rem 0 0;
+	font-size: 1.0625rem;
+}
+
+.elg-hero-actions a {
+	color: #2997ff;
+	text-decoration: none;
+}
+
+.elg-hero-actions a::after {
+	content: ' ›';
+}
+
+.elg-hero-actions a:hover {
+	text-decoration: underline;
+}
+
+.elg-hero-shot {
+	justify-self: center;
+	width: 100%;
+	max-width: 20rem;
+	height: auto;
+}
+
+/* --- Overview --- */
+
+.elg-overview {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 1rem 3rem;
+	align-items: start;
+}
+
+@media (min-width: 64rem) {
+	.elg-overview {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	}
+}
+
+.sl-markdown-content .elg-overview > div {
+	margin: 0;
+}
+
+.elg-overview .elg-lang-pair:first-child {
+	margin-top: 0;
+}
+
+/* --- Sample code --- */
+
+.elg-gallery {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+	gap: 2rem 1.5rem;
 	margin-top: 2rem;
 }
 
-.elg-hero-actions .sl-link-button.primary {
-	background: var(--elg-gradient);
-	border: none;
-	color: #fff;
-	box-shadow: 0 8px 24px -10px rgb(110 110 255 / 0.7);
+.elg-gallery a {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	text-decoration: none;
+	font-size: 1rem;
+	line-height: 1.5;
+	color: var(--sl-color-gray-3);
 }
 
-.elg-hero-demo {
-	position: relative;
-	padding-bottom: 8rem;
-}
-
-.elg-hero-code {
-	margin: 0;
-}
-
-.elg-hero-code .expressive-code .frame {
-	box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.6);
-}
-
-.elg-hero-window {
-	position: absolute;
-	right: 0;
-	bottom: 0;
-	width: min(12rem, 40%);
-	height: auto;
-	border-radius: 0.6rem;
-	box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06), 0 30px 60px -20px rgb(0 0 0 / 0.7);
-}
-
-/* --- Sections --- */
-
-.elg-home {
-	--elg-home-width: min(72rem, 100vw - 3rem);
-	width: var(--elg-home-width);
-	margin-inline: calc((100% - var(--elg-home-width)) / 2);
-}
-
-.elg-home-section {
-	padding: 4rem 0;
-	border-top: 1px solid var(--sl-color-hairline);
-}
-
-.sl-markdown-content .elg-home-kicker {
-	margin: 0;
-	font-size: var(--sl-text-sm);
-	font-weight: 650;
-	letter-spacing: 0.02em;
-	background: var(--elg-gradient);
-	-webkit-background-clip: text;
-	background-clip: text;
-	color: transparent;
-	width: fit-content;
-}
-
-.sl-markdown-content h2.elg-home-heading {
-	margin: 0.5rem 0 0;
-	padding: 0;
-	border: none;
-	max-width: 36rem;
-	font-size: clamp(1.75rem, 3.5vw, 2.4rem);
-	line-height: 1.15;
-	letter-spacing: -0.03em;
-}
-
-.sl-markdown-content .elg-home-lead {
+.elg-gallery strong {
 	margin-top: 0.75rem;
-	color: var(--sl-color-gray-3);
+	font-size: 1.0625rem;
+	font-weight: 600;
+	color: var(--sl-color-accent);
 }
 
-.elg-features {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-	gap: 1rem;
-	margin-top: 2.5rem;
+.elg-gallery a:hover strong {
+	text-decoration: underline;
 }
 
-.sl-markdown-content .elg-feature {
-	margin: 0;
-	padding: 1.5rem;
-	border: 1px solid var(--sl-color-hairline);
-	border-radius: var(--elg-radius);
-	background: var(--elg-surface);
-	transition: border-color 0.2s;
-}
-
-.elg-feature:hover {
-	border-color: var(--sl-color-hairline-light);
-}
-
-.elg-feature-icon {
-	display: inline-grid;
-	place-items: center;
-	padding: 0.55rem;
-	border-radius: 0.6rem;
-	background: var(--sl-color-accent-low);
-	color: var(--sl-color-accent-high);
-}
-
-.sl-markdown-content .elg-feature h3 {
-	margin: 1rem 0 0.4rem;
-	font-size: 1.05rem;
-	font-family: var(--sl-font);
-}
-
-.sl-markdown-content .elg-feature p {
-	margin: 0;
-	font-size: var(--sl-text-sm);
-	line-height: 1.6;
-	color: var(--sl-color-gray-3);
-}
-
-/* The gallery: screenshots in a loose mosaic. */
-.elg-gallery {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-	grid-auto-rows: 13rem;
-	grid-auto-flow: dense;
-	gap: 1rem;
-	margin-top: 2.5rem;
-}
-
-@media (min-width: 50rem) {
-	.elg-gallery-tall {
-		grid-row: span 2;
-	}
-
-	.elg-gallery-wide {
-		grid-column: span 2;
-	}
-}
-
-.sl-markdown-content .elg-gallery-item {
-	position: relative;
-	margin: 0;
+.elg-gallery-shot {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	overflow: hidden;
-	border: 1px solid var(--sl-color-hairline);
+	aspect-ratio: 16 / 10;
+	padding: 0.75rem;
 	border-radius: var(--elg-radius);
-	background: var(--elg-surface);
-	text-decoration: none;
+	background: var(--elg-fill);
 }
 
-.elg-gallery-item img {
-	max-width: 88%;
-	max-height: 82%;
+.elg-gallery-shot img {
+	max-width: 100%;
+	max-height: 100%;
 	width: auto;
 	height: auto;
 	object-fit: contain;
-	border-radius: 0.4rem;
-	box-shadow: 0 20px 40px -20px rgb(0 0 0 / 0.6);
-	transition: transform 0.3s ease;
-}
-
-.elg-gallery-item:hover img {
-	transform: scale(1.03);
-}
-
-.elg-gallery-item span {
-	position: absolute;
-	left: 0.75rem;
-	bottom: 0.6rem;
-	font-size: var(--sl-text-xs);
-	font-weight: 600;
-	color: var(--sl-color-gray-2);
-}
-
-/* Getting started: three steps. */
-.sl-markdown-content .elg-steps {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-	gap: 1rem;
-	margin: 2.5rem 0 0;
-	padding: 0;
-	list-style: none;
-}
-
-.sl-markdown-content .elg-steps li {
-	margin: 0;
-}
-
-.elg-steps a {
-	display: flex;
-	flex-direction: column;
-	gap: 0.35rem;
-	height: 100%;
-	padding: 1.5rem;
-	border: 1px solid var(--sl-color-hairline);
-	border-radius: var(--elg-radius);
-	background: var(--elg-surface);
-	color: var(--sl-color-gray-3);
-	text-decoration: none;
-	font-size: var(--sl-text-sm);
-	transition: border-color 0.2s, transform 0.2s;
-}
-
-.elg-steps a:hover {
-	border-color: var(--sl-color-accent);
-	transform: translateY(-2px);
-}
-
-.elg-steps strong {
-	color: var(--sl-color-white);
-	font-size: 1.05rem;
-}
-
-.elg-step-number {
-	display: grid;
-	place-items: center;
-	width: 1.9rem;
-	height: 1.9rem;
-	margin-bottom: 0.6rem;
-	border-radius: 999px;
-	background: var(--elg-gradient);
-	color: #fff;
-	font-weight: 700;
-	font-size: var(--sl-text-sm);
 }

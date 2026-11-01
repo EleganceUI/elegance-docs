@@ -4,7 +4,10 @@ The documentation site for [Elegance](https://github.com/EleganceUI/elegance), b
 [Astro Starlight](https://starlight.astro.build). Guides live in `src/content/docs/`. Both API
 references are generated on every build:
 
-- **C++**: from Elegance's public headers (`include/elg/`), by `scripts/gen-reference.mjs`.
+- **C++**: from Elegance's public headers (`include/elg/`), by `scripts/gen-reference.mjs`: a
+  page per header and per declaration (View's members included). `scripts/cpp-topics.mjs` says
+  which guide lists each declaration, in its Topics and under it in the sidebar; new API that no
+  guide lists shows up under its header instead.
 - **Rust**: from rustdoc's JSON for the [elegance-rs](https://github.com/EleganceUI/elegance-rs)
   crates, by `scripts/gen-rust-reference.mjs`.
 
@@ -40,5 +43,7 @@ for a repository), set `DOCS_SITE` and `DOCS_BASE`.
 `main`, every day (to pick up changes in the other repositories), on demand, and when another
 repository sends a `repository_dispatch` of type `docs`.
 
-Screenshots in `src/assets/examples/` are captures of the example apps; retake them when an
-example's look changes.
+Screenshots in `src/assets/examples/` are captures of the example apps' windows on macOS, on a
+Retina screen: the window alone, with its shadow, on a transparent background (⌘⇧4, then Space,
+then ⌥-click the window, or `screencapture -l <window id>`). Retake them when an example's look
+changes.

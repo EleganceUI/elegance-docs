@@ -1,63 +1,41 @@
 ---
-// The landing page's hero: the pitch on the left, a small app in both languages on the right
-// (under the same C++/Rust switch as every other sample), and its window in front.
+// The home page's banner: what Elegance is and where it runs on the left, the counter's window on
+// the right, on a dark band the width of the page. Other pages with a hero (the 404) get Starlight's.
 import { Image } from 'astro:assets';
-import { Code, LinkButton } from '@astrojs/starlight/components';
-import LanguageTabs from './LanguageTabs.astro';
+import Default from '@astrojs/starlight/components/Hero.astro';
 import counter from '../assets/examples/counter.png';
 
-const { data } = Astro.locals.starlightRoute.entry;
+const { id, data } = Astro.locals.starlightRoute.entry;
 const { title = data.title, tagline, actions = [] } = data.hero || {};
-
-const cpp = `View Counter() {
-    const State<int> count(0);
-
-    return VStack({.spacing = 16},
-        Text([=] { return std::format("{}", count()); })
-            .font(Font::system(56, Weight::bold)),
-        HStack(Button("−", [=] { count -= 1; }),
-               Button("+", [=] { count += 1; })));
-}`;
-
-const rust = `#[component]
-fn Counter() -> impl IntoView {
-    let mut count = State::new(0);
-
-    elg! {
-        VStack(spacing: 16) {
-            Text("{count}").font(Font::system(56.0, .bold))
-            HStack {
-                Button("−", move || count -= 1)
-                Button("+", move || count += 1)
-            }
-        }
-    }
-}`;
+const home = id === '' || id === 'index';
 ---
 
-<div class="elg-hero">
-	<div class="elg-hero-copy">
-		<p class="elg-hero-eyebrow">C++23 · Rust · WebGPU</p>
-		<h1 id="_top" data-page-title set:html={title} />
-		{tagline && <p class="elg-hero-tagline" set:html={tagline} />}
-		{
-			actions.length > 0 && (
-				<div class="elg-hero-actions">
-					{actions.map(({ icon, link: href, text, variant }) => (
-						<LinkButton {href} {variant} icon={icon?.name}>
-							{text}
-						</LinkButton>
-					))}
+{!home && <Default />}
+{
+	home && (
+		<div class="elg-hero not-content">
+			<div class="elg-hero-inner">
+				<div class="elg-hero-copy">
+					<p class="elg-hero-eyebrow">Framework</p>
+					<h1 id="_top" data-page-title set:html={title} />
+					{tagline && <p class="elg-hero-tagline" set:html={tagline} />}
+					<dl class="elg-hero-facts">
+						<div><dt>Languages</dt><dd>C++23, Rust</dd></div>
+						<div><dt>Platforms</dt><dd>Windows, macOS, Linux</dd></div>
+						<div><dt>Renderer</dt><dd>WebGPU</dd></div>
+					</dl>
+					{
+						actions.length > 0 && (
+							<p class="elg-hero-actions">
+								{actions.map(({ link: href, text }) => (
+									<a {href}>{text}</a>
+								))}
+							</p>
+						)
+					}
 				</div>
-			)
-		}
-	</div>
-	<div class="elg-hero-demo">
-		<div class="elg-hero-code elg-lang-pair">
-			<LanguageTabs />
-			<Code code={cpp} lang="cpp" title="Counter" />
-			<Code code={rust} lang="rust" title="Counter" />
+				<Image src={counter} alt="The counter example running in its own window" class="elg-hero-shot" loading="eager" />
+			</div>
 		</div>
-		<Image src={counter} alt="The counter running in its own window" class="elg-hero-window" loading="eager" />
-	</div>
-</div>
+	)
+}

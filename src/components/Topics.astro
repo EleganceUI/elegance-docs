@@ -1,0 +1,39 @@
+---
+// Pages by group, each linked with its description: the group's name on the left, its pages on
+// the right. Titles and descriptions come from the pages themselves; an API page's title is code.
+//   <Topics groups={[{ title: 'Essentials', pages: ['guides/layout', 'guides/state'] }]} />
+import { getCollection } from 'astro:content';
+import { hrefOf, inlineHtml } from '../scripts/api';
+
+interface Props {
+	groups: { title: string; pages: string[] }[];
+}
+
+const { groups } = Astro.props;
+const entries = new Map((await getCollection('docs')).map((entry) => [entry.id, entry]));
+
+const pageOf = (id: string) => {
+	const entry = entries.get(id);
+	if (!entry) throw new Error(`Topics: no page "${id}"`);
+	const { title, description, symbol } = entry.data;
+	return { href: hrefOf(id), title, description, code: symbol !== undefined };
+};
+---
+
+<div class="elg-topic-groups not-content">
+	{
+		groups.map(({ title, pages }) => (
+			<section class="elg-topic-group">
+				<h3>{title}</h3>
+				<ul>
+					{pages.map(pageOf).map(({ href, title, description, code }) => (
+						<li>
+							<a {href}>{code ? <code>{title}</code> : title}</a>
+							{description && <p set:html={inlineHtml(description)} />}
+						</li>
+					))}
+				</ul>
+			</section>
+		))
+	}
+</div>

@@ -117,6 +117,9 @@ let recorder = AudioRecorder::with_samples(
 
 </Lang>
 
+If the function <Lang only="cpp" inline>throws</Lang><Lang only="rust" inline>panics</Lang>, it isn't called again, and the <Lang only="cpp" inline>exception</Lang><Lang only="rust" inline>panic</Lang> is passed on to
+the UI thread, where it reaches the app's [error handler](../debugging/#errors-you-can-handle).
+
 ## Camera
 
 A `Camera` captures a camera's live picture, and `CameraView` shows it:

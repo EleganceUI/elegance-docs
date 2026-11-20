@@ -75,7 +75,10 @@ These tell you how it's going, and update views that show them:
 | `natural_size()` | its size in pixels |
 | `error()` | why it can't play: a missing file, a format the system can't play, or a network error |
 
-A video loads in the background, so `is_ready()` starts out false.
+A video loads in the background, so `is_ready()` starts out false. The volume is kept between 0
+and 1 on every platform, and `volume()` gives you the value it was clamped to.<Lang only="cpp" inline> A volume that's NaN throws `UsageError`.</Lang>
+
+One player can be shown in several windows at once, and each new frame is drawn in all of them.
 
 ## Your own controls
 
@@ -139,10 +142,14 @@ turns YUV into colors on the graphics card. `clear()` shows black until the next
 `size()` and `has_frame()` tell views about the frames. A feed view can show the picture mirrored,
 which is what people expect when they see their own camera.
 
+Frames have to fit in the graphics card's largest texture, which is at least 8192 pixels on a
+side. A larger frame, pushed or decoded, isn't shown, and a warning is logged once.
+
 ## Performance
 
 Frames go straight to the graphics card, without being copied through the processor, and a
-playing video redraws its window without working out the layout again.
+playing video redraws its window without working out the layout again. Hidden and minimized
+windows don't redraw for new frames; when one is shown again, it shows the newest frame.
 
 ## Example
 

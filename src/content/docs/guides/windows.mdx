@@ -32,6 +32,14 @@ fn main() -> Result<std::process::ExitCode, Error> {
 }
 ```
 
+Call `run()` on the main thread, the one that started your program, and run one app at a time.
+<Lang only="cpp" inline>Otherwise it throws `UsageError`.</Lang>
+
+On Windows, `run()` sets up OLE on the main thread before the app starts, and undoes it when the
+app ends: drag and drop, the clipboard, and file dialogs need it. If your app has already put that
+thread in COM's multithreaded apartment, a warning in the log says those may not work. Elegance
+doesn't set up COM on your own threads; its own threads use the multithreaded apartment.
+
 A window's content is built once, when the window opens.
 
 ### Window options
@@ -47,7 +55,7 @@ A window's content is built once, when the window opens.
 | transparent | no | the desktop shows through where nothing opaque is drawn |
 | opacity | 1 | the whole window's opacity |
 | fullscreen | no | covers the whole display, without a frame |
-| <Lang only="cpp" inline>material</Lang><Lang only="rust" inline>material (C++ only for now)</Lang> | none | a translucent backdrop from the system (below) |
+| material | none | a translucent backdrop from the system (below) |
 
 Windows follow each display's scale, including when they move to a monitor with a different one.
 Resizing is live: the content lays itself out continuously while you drag the edge.
@@ -141,12 +149,8 @@ fn main() -> Result<std::process::ExitCode, Error> {
 }
 ```
 
-<Lang only="cpp">
-
-For other differences between platforms, `current_platform()` returns `Platform::windows`,
-`macos`, or `linux`, and is known at compile time.
-
-</Lang>
+For other differences between platforms, `current_platform()` returns
+<Lang only="cpp" inline>`Platform::windows`, `macos`, or `linux`. It's an ordinary function that runs when the app does, so it can't be used in `if constexpr` or `static_assert`; the same goes for `primary_modifier()`.</Lang><Lang only="rust" inline>`Platform::Windows`, `MacOS`, or `Linux`.</Lang>
 
 ### The window a view is in
 
@@ -204,15 +208,6 @@ opaque.
 
 ## Translucent materials
 
-<Lang only="rust">
-
-The C++ API can give a window one of the system's translucent backdrops (vibrancy on macOS, Mica
-and Acrylic on Windows 11). The Rust bindings don't have it yet.
-
-</Lang>
-
-<Lang only="cpp">
-
 A window can have one of the system's translucent backdrops behind its content: the desktop and the
 windows below, blurred and tinted, like Finder's sidebar or the Windows 11 Settings app. Where your
 content and the window's background aren't opaque, it shows through:
@@ -224,18 +219,24 @@ app.window({.title = "Files", .material = WindowMaterial::sidebar}, [] {
 });
 ```
 
+```rust
+# #[component] fn Files() -> impl IntoView { elg! { Text("Files") } }
+fn main() -> Result<std::process::ExitCode, Error> {
+    let desc = WindowDesc::new("Files").material(WindowMaterial::Sidebar);
+    App::new().window(desc, Files).run()
+}
+```
+
 Each platform uses its closest match:
 
 | Material | macOS | Windows 11 |
 | --- | --- | --- |
-| `sidebar` | sidebar vibrancy | Mica Alt |
-| `under_window` | under-window vibrancy | Mica |
-| `mica` | under-window vibrancy | Mica |
-| `acrylic` | HUD window vibrancy | Acrylic |
+| <Lang only="cpp" inline>`sidebar`</Lang><Lang only="rust" inline>`Sidebar`</Lang> | sidebar vibrancy | Mica Alt |
+| <Lang only="cpp" inline>`under_window`</Lang><Lang only="rust" inline>`UnderWindow`</Lang> | under-window vibrancy | Mica |
+| <Lang only="cpp" inline>`mica`</Lang><Lang only="rust" inline>`Mica`</Lang> | under-window vibrancy | Mica |
+| <Lang only="cpp" inline>`acrylic`</Lang><Lang only="rust" inline>`Acrylic`</Lang> | HUD window vibrancy | Acrylic |
 
 On Windows 10 and Linux, the window stays opaque and draws its background as usual.
-
-</Lang>
 
 ## Example
 

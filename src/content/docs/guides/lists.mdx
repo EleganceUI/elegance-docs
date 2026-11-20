@@ -105,6 +105,27 @@ In a stack, the items are children of the stack, so they get its spacing and ali
 <Lang only="rust" inline>Items need `Clone` and `PartialEq`: that's how `ForEach` tells an item changed and needs a new view.</Lang>
 </Aside>
 
+Keys should be unique. If several items share a key, each of them still gets a view of its own,
+in lazy stacks too, but those items are rebuilt every time the collection changes, and a warning
+is logged the first time.<Lang only="cpp" inline> An empty `std::function` or a null pointer as the items, the key, or the
+content throws `UsageError`.</Lang>
+
+### Keeping views as items change
+
+A changed item normally gets a new view, which starts its state over. To keep each item's view for
+as long as its key is there, have the content take a `Signal` of the item instead. The view then
+reads the item through the signal, which follows the item's new values:
+
+```cpp
+ForEach(todos, &Todo::id, [](Signal<Todo> todo) { return Text([todo] { return todo().title; }); })
+```
+
+```rust
+# #[derive(Clone, PartialEq)] struct Todo { id: i64, title: String }
+# let todos = State::new(Vec::<Todo>::new());
+let rows = ForEach::new(todos).id(|t| t.id).content_signal(|todo| Text::new(move || todo.get().title));
+```
+
 ### Filtering and sorting
 
 To show only some items, or show them in a different order, give `ForEach` a computed value:

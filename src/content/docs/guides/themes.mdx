@@ -146,8 +146,6 @@ Button("Delete", remove).tint(Color::hex(0xFF453A))
 VStack { Text("Form") }.tint(.success)
 ```
 
-<Lang only="cpp">
-
 People pick an accent color in their system settings. `system_accent_color()` returns it (or
 nothing, where the system doesn't have one), and updates when they change it, so you can make your
 app follow it:
@@ -156,14 +154,9 @@ app follow it:
 Root().tint([] { return system_accent_color().value_or(Color::hex(0x0A84FF)); });
 ```
 
-</Lang>
-
-<Lang only="rust">
-
-The C++ API can also follow the accent color people pick in their system settings
-(`system_accent_color()`); the Rust bindings don't have it yet.
-
-</Lang>
+```rust
+VStack { Text("Root") }.tint(|| system_accent_color().unwrap_or(Color::hex(0x0A84FF)))
+```
 
 ## Example
 

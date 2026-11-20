@@ -59,6 +59,11 @@ Circle().stroke(ThemeColor::accent, {.width = 3, .cap = LineCap::round, .dash = 
 Circle().stroke_style(.accent, StrokeStyle::default().width(3.0).cap(LineCap::Round).dash(vec![6.0, 4.0]))
 ```
 
+A dash pattern lists lengths: on, off, on, off, and so on. An odd number of lengths is used twice
+over, as in SVG and CSS, so `{4}` means `{4, 4}`, and `{4, 2, 1}` means `{4, 2, 1, 4, 2, 1}`. A path
+is drawn with at most 100,000 dashes: past that, the rest of it isn't drawn, and a warning is
+logged.
+
 ### Shapes as backgrounds and clips
 
 Most of the time shapes appear through modifiers:
@@ -168,7 +173,7 @@ let heart = Path::svg("M12 21s-7.5-4.6-9.6-9.3C.9 8.4 3.2 4.5 6.9 4.5c2.1 0 3.6 
 The builders are `move_to`, `line_to`, `quad_to`, `cubic_to`, `arc_to` (SVG-style) and `close`,
 plus `add_rect`, `add_rounded_rect`, `add_ellipse`, `add_circle` and `add_path`. `Path::svg`
 accepts every SVG path command, absolute and relative, and reports the position of anything it can't
-read as an error.
+read as an error, including numbers that aren't finite or are larger than 10⁹.
 
 Show a path with `PathShape`. With a view box, the path is scaled to fit the frame and centered,
 as in SVG:
@@ -244,6 +249,15 @@ Canvas(move |g| {
 ```
 
 A canvas takes the size it's offered. Coordinates are points from its top-left corner.
+
+The closure runs only when the canvas is drawn, with the canvas's final frame and the window's
+scale, not when the view is built. Otherwise a canvas keeps its last drawing. It draws again
+only when a state it read changes, when its size or the window's scale changes, when it moves by a
+fraction of a pixel, when the theme changes, or on every frame if it read `time()` or called
+`request_frame()`. Plain data the closure reads, which isn't state, doesn't make it draw again, so
+keep what it draws in state. If it <Lang only="cpp" inline>throws</Lang><Lang only="rust" inline>panics</Lang>, the error
+is reported to the [app's error handler](../debugging/#errors-you-can-handle) as drawing code, and
+whatever it drew in that frame is left out.
 
 ## Animated drawing
 

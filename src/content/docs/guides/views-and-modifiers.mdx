@@ -95,6 +95,14 @@ elg! {
 }
 ```
 
+<Lang only="cpp">
+
+A modifier doesn't change the view you call it on: it returns a new one. So `view.padding(4);` on a
+line of its own does nothing, and the compiler warns you about it. Getters that return a value
+warn in the same way when you ignore what they return.
+
+</Lang>
+
 Each modifier wraps everything before it, so **order matters**. A background added after padding
 covers the padding; one added before it doesn't. A frame added before a background sizes the
 background too. When a result surprises you, read the chain from the top down and picture each
@@ -115,12 +123,16 @@ with its exact parameters.
 | Layout | `padding`, `frame`, `fixed_size`, `aspect_ratio`, `resizable`, `layout_priority`, `z_index`, `offset` |
 | Decoration | `background`, `overlay`, `border`, `shadow`, `inner_shadow` |
 | Effects | `opacity`, `clipped`, `clip_shape`, `corner_radius`, `mask`, `blur`, `backdrop_blur`, `rotation_effect`, `scale_effect`, `grayscale`, `saturation`, `blend_mode`, and more color effects |
-| Interaction | `on_click`, `on_double_click`, `on_activate`, `on_hover_change`, `on_pointer_enter`, `on_pointer_leave`, `on_key_press`, `on_scroll`, `on_drop`, `recognize`, `on_drag`, `on_long_press`, `focusable`, `focused`, `disabled`, `content_shape`, `allows_hit_testing`, `window_drag_area` |
+| Interaction | `on_click`, `on_double_click`, `on_activate`, `on_hover_change`, `on_pointer_enter`, `on_pointer_leave`, `on_key_press`, `on_scroll`, `on_drop`, `on_pointer_capture`, `on_key_capture` and the other `_capture` handlers, `recognize`, `on_drag`, `on_long_press`, `focusable`, `focused`, `disabled`, `content_shape`, `allows_hit_testing`, `window_drag_area` |
 | Popups | `popover`, `tooltip`, `help`, `context_menu`, `floating` |
 | Environment | `font`, `font_weight`, `foreground_style`, `tint`, `color_scheme`, `theme`, `button_style`, `toggle_style`, `text_field_style`, and the other styles |
 | Animation | `animation`, `transition`, `animates_layout` |
 | Lifecycle | `on_appear`, `on_disappear` |
 | Accessibility | `accessibility_label`, `accessibility_value`, `accessibility_hint`, `accessibility_hidden`, `accessibility_role`, `accessibility_action` |
+
+A `mask` also limits where the view can be clicked. The content is hit only where the mask itself
+would be hit, such as on a shape's fill or within a text's frame, and the mask never takes the
+click itself.
 
 ### Text and shapes have their own
 

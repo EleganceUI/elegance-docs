@@ -196,6 +196,7 @@ value, with its type and a default, and set it on children with `.layout_value`:
 ```cpp
 struct Column {
     using Value = int;
+    static constexpr std::string_view name = "myapp.column"; // stable and unique
     static int default_value() { return 0; }
 };
 
@@ -223,3 +224,12 @@ let grid = GridLayout.view(vec![
 
 The layout reads it with <Lang only="cpp" inline>`child.value<Column>()`</Lang><Lang only="rust" inline>`child.value::<Column>()`</Lang>, and gets the default for children that
 don't set it. Every child also tells you its `layout_priority()` and whether it `is_spacer()`.
+
+Layout value keys are identified the same way as [environment keys](../environment/#your-own-keys):
+<Lang only="cpp" inline>by their `name` and value type, for the seven types that keys can be
+[shared by name](../environment/#keys-by-name) with. `child.value_named<T>(name)` reads a value
+by a name you give it while the app runs. It returns `std::nullopt` when the child has no value
+for that name and type, since there's no default.</Lang><Lang only="rust" inline>a key with a
+`NAME` and one of the seven [shared types](../environment/#keys-by-name) has the same value as a C++
+key with that name and type, and any other key is Rust's own. Layout values are plain values:
+`.layout_value` takes a value, not a closure or a state.</Lang>

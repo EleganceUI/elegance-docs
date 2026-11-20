@@ -129,7 +129,31 @@ replaced. Keep data that should last in the host, and pass it in, or put it in t
 
 The host and the module must be built with the same compiler and the same Elegance, which happens
 by itself when they're in one CMake project. Elegance must be built as a shared library
-(`ELG_BUILD_SHARED`, which is the default).
+(`ELG_BUILD_SHARED`, which is the default). A module records the Elegance headers it was compiled with, and
+it's loaded only if they're the ones the host's Elegance was compiled with.
+
+Types that the host and the module both use, such as the host's stores or the values it puts in
+the environment, have to stay the same too. Changing one of them in a reload would break the app,
+so you can have the host check for that. Give the module and the host the same hash of those
+types: `layout_hash<T...>()` combines the sizes and alignments of the types. Pass it to the module with
+`ELG_MODULE_WITH_APP_HASH` instead of `ELG_MODULE`, and to the host as `HotReloadOptions::app_hash`:
+
+```cpp title="views/shared.h"
+inline constexpr std::uint64_t shared_types = elg::layout_hash<TodoStore, Settings>();
+```
+
+```cpp title="views/views.cpp"
+ELG_MODULE_WITH_APP_HASH(Root, shared_types)
+```
+
+```cpp title="host.cpp"
+elg::HotReloadOptions options = elg_hot_reload_options();
+options.app_hash = shared_types;
+```
+
+A reload that changes those types then asks you to restart the app instead of loading the new
+views. Any other number that both sides compute works as well, such as a version you increase
+when the shared types change. 0, the default, means no check.
 
 ## Previews
 

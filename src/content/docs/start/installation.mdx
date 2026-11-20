@@ -207,6 +207,7 @@ Set these before `add_subdirectory`, or with `-D` when you configure:
 | `ELG_ACCESSIBILITY` | `ON` | Screen reader support, through AccessKit. |
 | `ELG_BUILD_SANDBOX` | top level | Elegance's sandbox app and, in a shared build, the hot reload host. |
 | `ELG_BUILD_TESTS` | top level | Elegance's unit tests (needs the vcpkg `tests` feature). |
+| `ELG_TRACY` | `OFF` | A build for the [Tracy profiler](../../guides/debugging/#profiling-with-tracy) (needs the vcpkg `profiling` feature). |
 
 ## Linking statically
 
@@ -260,7 +261,8 @@ Without them Direct3D 12 compiles shaders with the older FXC, and the first fram
 ## Working on Elegance itself
 
 To build Elegance's own sandbox and tests, clone it and use one of its CMake presets
-(`windows-debug`, `macos-debug`, `linux-debug`, and their `-release` versions):
+(`windows-debug`, `macos-debug`, `linux-debug`, their `-release` versions, and the
+`-tracy` versions for [profiling](../../guides/debugging/#profiling-with-tracy)):
 
 ```sh
 cmake --preset macos-debug

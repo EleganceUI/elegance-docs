@@ -123,6 +123,11 @@ The [layout example](../../examples/#layout) uses this layout for its tags.
 To build on the standard stacks, `VStackLayout`, `HStackLayout`, and `ZStackLayout` measure and
 place children exactly as the stacks do, so your layout can hand work to them.
 
+If your layout <Lang only="cpp" inline>throws</Lang><Lang only="rust" inline>panics</Lang> while measuring or placing, the failure is
+[reported](../debugging/#errors-you-can-handle) once. After that, its view has no size, and draws
+and takes clicks nowhere, until its layout is next invalidated, for example because a child
+changes. The same goes for layout modifiers. A size observer that fails is reported too.
+
 ### Proposals
 
 A `ProposedSize` is the space a parent offers, with an optional width and height. Leaving one out
@@ -191,7 +196,8 @@ new size, `update_cache` refreshes it; by default, that makes a new one.
 ## Values from children
 
 Children can carry values for their layout, like which column they go in. Make a key for the
-value, with its type and a default, and set it on children with `.layout_value`:
+value, with its type<Lang only="cpp" inline>, a `name` that's stable and unique (a key without one
+doesn't compile),</Lang> and a default, and set it on children with `.layout_value`:
 
 ```cpp
 struct Column {

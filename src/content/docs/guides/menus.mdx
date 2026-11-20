@@ -3,6 +3,8 @@ title: Menus and popups
 description: "Context menus, menu buttons, submenus, menu pickers, popovers, floating content, and tooltips."
 ---
 
+import Lang from '../../../components/Lang.astro';
+
 ## Menus
 
 A `Menu` is a panel of items: `MenuItem`s, `Submenu`s, `Separator`s, or any view.
@@ -37,6 +39,14 @@ check mark (`.checked`, reactive), or the danger color (`.destructive`). Disable
 
 Menus work with the keyboard: Up and Down move between items, Enter chooses, Esc closes, and Right
 and Left enter and leave submenus.
+
+<Lang only="cpp">
+
+A function that builds a menu or a popup has to be there: an empty one passed to `Submenu`,
+`MenuButton`, `.context_menu`, `.popover`, `.floating`, or `.tooltip` throws `UsageError` right away, when you
+make the view. A `MenuItem` can have an empty action.
+
+</Lang>
 
 ## Context menus
 
@@ -236,6 +246,10 @@ elg! {
 `floating`, `popover` and `tooltip` take `.motion` in their options. Without one, popovers,
 tooltips and menus use their style's `motion()`, which a custom style can override to animate
 every popup it draws.
+
+When someone dismisses floating content in the window, with Esc or a press outside it, it closes,
+and its binding is set to false. It closes even when the binding ignores that, as a constant
+binding does. It opens again only once the binding has been false and then turned true again.
 
 ## Tooltips
 

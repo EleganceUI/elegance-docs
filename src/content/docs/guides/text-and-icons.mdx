@@ -34,6 +34,10 @@ Text(body).line_limit(3)
 Text(caption).multiline_text_alignment(.center)
 ```
 
+Text that isn't valid UTF-8 is still shown: each broken sequence is shown as the replacement
+character, �. That's true of a `Text`, of each run of styled text on its own, and of text that's
+typed, pasted, or dropped.
+
 Elegance shapes text properly, with ligatures, kerning, and combining marks. Characters a font
 doesn't have, such as Chinese, Japanese, or Korean text and symbols, come from the system's
 fonts, and emoji are drawn in color. Right-to-left scripts aren't supported yet.
@@ -53,14 +57,23 @@ Text(order_id).selectable(true)
 Text(order_id).selectable(move || !editing.get()) // follows the state
 ```
 
-Dragging selects from where the press went down. A double click selects a word, a triple click a
-paragraph, and Shift-click extends the selection. The selection is drawn in the tint. The primary
-modifier with C copies the selection as plain text, and with A selects all the text, unless a
-view that gets the key first takes it. Copy and Select All in the Edit menu work the same way. A
-window has one selection, which goes away when you click anywhere else, or when the text changes,
-stops being selectable, is turned off, or goes away. Over selectable text, the pointer is an
-I-beam, unless the text itself has its own `pointer_style`. Selectable text doesn't take focus.
-Inside a button or another control, text isn't selectable, and presses go to the control.
+Dragging with the left button selects from where the press went down. A double click selects a
+word, a triple click a paragraph, and Shift-click extends the selection. The selection is drawn in
+the tint, like a focused text field's. Over selectable text, the pointer is an I-beam, unless the
+text itself has its own `pointer_style`. Selectable text doesn't take focus.
+
+The primary modifier with C copies the selection as plain text, line breaks included, and with A
+selects all the lines shown. These keys go to the other handlers first, and the selection only
+takes them if none of those did. Once it takes them, menu shortcuts for those keys don't run.
+Copy and Select All in the Edit menu work on the selection too.
+
+A window has one selection. It goes away when you click anywhere else, or when the text changes,
+stops being selectable, is turned off, or goes away. A press on selectable text always goes to
+the text, so gestures around it don't get it unless they have high priority. Inside a button or
+another control, text isn't selectable, and presses go to the control.
+
+Selection doesn't work yet for styled text or across several texts. It can't be changed with the
+keyboard, there's no context menu for it, and screen readers aren't told about it.
 
 ## Fonts
 
@@ -98,6 +111,10 @@ let light_title = Font::title().weight(Weight::Regular);
 let strong = Font::body().bold();
 let larger = Font::body().with_size(18.0);
 ```
+
+On Linux, the system font is the sans-serif face that fontconfig picks for the weight and slant
+you ask for. Elegance loads fontconfig while the app runs, so your app doesn't depend on it. When
+it isn't there, Elegance looks for DejaVu, Noto, or Liberation Sans.
 
 Set a font on one `Text`, or on a container to change everything inside it:
 
@@ -266,3 +283,8 @@ set_default_icon_set("brand")?; // names without a set now come from "brand"
 ```
 
 A set can also have several weights and variants, like Phosphor's.
+
+Each set needs a name of its own. The built-in set, `phosphor`, is registered from the start, so
+to register a set under a name that's already taken, including `phosphor`, set `replace` to true.
+A registration that fails leaves the registered sets as they were. You can register sets from any
+thread.

@@ -229,7 +229,8 @@ elg! {
 
 `on_hover_change` tells you `true` when the pointer arrives and `false` when it leaves. Unlike the
 first two, it can wait a moment, so sweeping the pointer across a grid of tiles doesn't start a
-preview on every one. Set the delays with `.hover_delay`, for everything inside a view:
+preview on every one. By default it doesn't wait. Set the delays with `.hover_delay`, for
+everything inside a view:
 
 ```cpp
 Grid().hover_delay({.enter = 0.3, .exit = 0.2});
@@ -310,7 +311,9 @@ if it had focus, focus moves on.
 
 ## The keyboard
 
-Keys go to the focused view first, then to each view around it in turn, until one handles them:
+Keys go to the focused view first, then to each view around it in turn, until one handles them.
+(Views around it can also see keys first, with capture handlers: see
+[Seeing events before the views inside](#seeing-events-before-the-views-inside).)
 
 ```cpp
 Editor().on_key_press(Key::escape, [=] { close(); });
@@ -482,6 +485,14 @@ elg! {
     }
 }
 ```
+
+If another view takes a new press while your view has the pointer captured, such as a right
+click while the left button is held, your view first gets a `cancel` event. Reset anything you
+were tracking when it comes.
+
+When a view is removed, or starts its transition out, Elegance lets go of it: a press it captured
+is cancelled, its gestures are reset or cancelled, it gets a pointer-leave if the pointer was over
+it, and focus moves off it. So a handler never hears from a view that's gone.
 
 For anything beyond that, like one handler for several kinds of events, you can write your own
 event modifier. The [reference](../../reference/) lists every event type.

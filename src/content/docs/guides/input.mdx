@@ -408,11 +408,8 @@ Views can accept files or text dragged in from other apps, like the file manager
 ```cpp
 const State<bool> targeted(false);
 
-DropZone().on_drop({.files = [=](const std::vector<std::filesystem::path>& files, Point where) {
-                        import(files);
-                        return true; // accepted
-                    },
-                    .text = [=](const std::string& text, Point) { paste(text); return true; },
+DropZone().on_drop({.files = [=](const std::vector<std::filesystem::path>& files, Point where) { import(files); },
+                    .text = [=](const std::string& text, Point) { paste(text); },
                     .targeted = [=](bool over) { targeted = over; }});
 ```
 
@@ -424,20 +421,15 @@ let targeted = State::new(false);
 elg! {
     Text("Drop files here").on_drop(
         DropOptions::default()
-            .files(|files, _where| {
-                import(files);
-                true // accepted
-            })
-            .text(|text, _| {
-                paste(text);
-                true
-            })
+            .files(|files, _where| import(files))
+            .text(|text, _| paste(text))
             .targeted(move |over| targeted.set(over)),
     )
 }
 ```
 
-The innermost view under the pointer that takes that kind of content gets it. `targeted` tells you
+A drop goes to one view: the innermost enabled view under the pointer that takes that kind of
+content (the one on top, if siblings overlap). Its handler runs, and the handlers return nothing. `targeted` tells you
 when something it could take is being dragged over it, so you can highlight it.
 
 ## Raw pointer and scroll events
@@ -493,3 +485,52 @@ elg! {
 
 For anything beyond that, like one handler for several kinds of events, you can write your own
 event modifier. The [reference](../../reference/) lists every event type.
+
+## Seeing events before the views inside
+
+Pointer presses, releases and hovers, scrolling, keys, and typed text travel in two phases. First
+they go *in*, from the outermost view to the innermost one, through each view's capture handlers.
+Then they come back *out*, from the innermost view to the outermost, through the ordinary
+handlers. The first handler to consume an event, in either phase, stops it. The handlers above
+are all ordinary ones. Each has a `_capture` version, so a view can see events before the views
+inside it do: `on_pointer_capture`, `on_scroll_capture`, `on_key_capture`, `on_key_press_capture`
+and `on_text_input_capture`.
+
+```cpp
+Form().on_key_press_capture(Key::escape, [=] { cancel(); }); // even while a text field has focus
+
+Board().on_pointer_capture([=](const PointerEvent& e) {
+    if (e.kind == PointerEvent::Kind::down && editing()) {
+        stop_editing();
+        return true; // the views inside never see this press
+    }
+    return false;
+});
+```
+
+```rust
+# let cancel = || {};
+# let editing = State::new(false);
+VStack {
+    TextField("Name", State::new(String::new()))
+}
+.on_key_press_capture(Key::Escape, cancel) // even while the text field has focus
+
+Canvas(|_| {}).on_pointer_capture(move |e| {
+    if e.kind == PointerEventKind::Down && editing.get() {
+        editing.set(false);
+        return true; // the views inside never see this press
+    }
+    false
+})
+```
+
+A capture handler that consumes a press captures the pointer, just as an ordinary one does. A
+key or text capture handler sees keys and text meant for a focused view inside its view.
+`on_text_input_capture` doesn't make its view focusable.
+
+If you write your own event modifier, its handler's `phase()` says which phase it hears events
+in. Unless you change it, that's <Lang only="cpp" inline>`EventPhase::bubble`</Lang><Lang only="rust" inline>`EventPhase::Bubble`</Lang>.
+The built-in event modifiers, such as `PointerModifier` and `KeyEventModifier`, are given their
+phase when you make them.
+

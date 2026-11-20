@@ -131,6 +131,14 @@ along with every kind of prop.
 
 </Lang>
 
+### When a body fails
+
+If a component's body <Lang only="cpp" inline>throws</Lang><Lang only="rust" inline>panics</Lang> while the app runs, the error goes to the log and to the
+app's [error handler](../debugging/#errors-you-can-handle), as <Lang only="cpp" inline>`AppCode::body`</Lang><Lang only="rust" inline>`AppCode::Body`</Lang>.
+The state, effects, and timers the body made go away with it. In the component's place, a
+release build of Elegance shows nothing. A debug build shows a red caption that says "A view's
+body threw:" and gives the message. Modifiers applied to the component from outside still apply.
+
 ## View modifiers
 
 A `ViewModifier` puts a set of modifiers under one name:
@@ -183,39 +191,22 @@ Like a component, `body` runs when the view is placed, so it can read the enviro
 
 ## Your own dot modifiers
 
-To write `.card()` instead of `.modifier(Card())`, add it to every view:
+<Lang only="cpp" inline>To chain your own modifier like a built-in one, write it as a free function that takes a view and returns one, and apply it with `.apply`:</Lang><Lang only="rust" inline>To write `.card()` instead of `.modifier(Card())`, add it to every view:</Lang>
 
 <Lang only="cpp">
 
-Write the declarations in a header, which Elegance includes *inside* the `View` class:
-
-```cpp title="view_extensions.h"
-View card(float corner_radius = 16) const;
-View badge_overlay(int count) const;
-```
-
-```cpp title="view_extensions.cpp"
-#include <elg/elegance.h>
-
-elg::View elg::View::card(float corner_radius) const {
-    return modifier(Card(corner_radius));
-}
-```
-
-Then tell CMake about the header:
-
-```cmake
-elegance_view_extensions(my_app view_extensions.h)
-```
-
-Every source file of `my_app` now sees the new members:
-
 ```cpp
-Text("Hello").padding(8).card();
+View card(View content) {
+    return content.modifier(Card());
+}
+
+Text("Hello").padding(8).apply(card); // the same as card(Text("Hello").padding(8))
 ```
 
-You can only add member functions this way. Adding data or virtual functions would change what a
-`View` is, so it's rejected when you compile.
+`.apply(f)` calls `f` with the view and returns what `f` returns, so the chain reads in order. For
+a modifier with more arguments, such as `View card(View content, float radius)`, pass a lambda:
+`.apply([](View v) { return card(v, 24); })`. `View`
+itself is the same in every app: you can't add member functions to it.
 
 </Lang>
 

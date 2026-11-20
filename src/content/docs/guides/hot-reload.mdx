@@ -118,18 +118,57 @@ int main() {
 }
 ```
 
-Run the host and edit a file in `views/`. A small badge shows the build's progress, and any
-compiler errors; when the build succeeds, the window shows your new views.
+Run the host and edit a file in `views/`. A small badge shows the build's progress. When the
+build succeeds, the window shows your new views. When it fails, your views and their state stay
+as they were. The badge shows the first line of the output that mentions an error, and a panel
+titled "The build failed" shows the whole output over the bottom of the window, until you hide it
+or the next build succeeds.
+
+If you close the host's window or quit while a build is running, the build is stopped rather
+than waited for. A views module exports only its entry point, `elg_module_entry`. Everything
+else in it is hidden, so its functions never clash with the host's or another module's.
 
 ### What survives a reload
 
 State made in your views starts over when they're reloaded, since the code that made it has been
 replaced. Keep data that should last in the host, and pass it in, or put it in the
-[environment](../environment/).
+[environment](../environment/). Environment keys and layout value keys declared in the module
+still match the host's after a reload, since keys are identified by their name and value type.
 
 The host and the module must be built with the same compiler and the same Elegance, which happens
 by itself when they're in one CMake project. Elegance must be built as a shared library
-(`ELG_BUILD_SHARED`, which is the default).
+(`ELG_BUILD_SHARED`, which is the default). A module records the Elegance headers it was compiled with, and
+it's loaded only if they're the ones the host's Elegance was compiled with. A module built for
+another version of Elegance is refused too, with a message saying so.
+
+Types that the host and the module both use, such as the host's stores or the values it puts in
+the environment, have to stay the same too. Changing one of them in a reload would break the app,
+so you can have the host check for that. Give the module and the host the same hash of those
+types: `layout_hash<T...>()` combines the sizes and alignments of the types. Pass it to the module with
+`ELG_MODULE_WITH_APP_HASH` instead of `ELG_MODULE`, and to the host as `HotReloadOptions::app_hash`.
+`elg_hot_reload_options()` and `elegance-preview` don't set it, so set it yourself:
+
+```cpp title="views/shared.h"
+inline constexpr std::uint64_t shared_types = elg::layout_hash<TodoStore, Settings>();
+```
+
+```cpp title="views/views.cpp"
+ELG_MODULE_WITH_APP_HASH(Root, shared_types)
+```
+
+```cpp title="host.cpp"
+elg::HotReloadOptions options = elg_hot_reload_options();
+options.app_hash = shared_types;
+```
+
+A reload that changes those types then asks you to restart the app instead of loading the new
+views. Any other number that both sides compute works as well, such as a version you increase
+when the shared types change. 0, the default, means no check.
+
+Each load stays in memory until the app quits, since code from an earlier load can still be
+running. A long session with many reloads uses more memory as it goes. Each `HotReload` loads
+copies of the module from its own folder, `elegance-reload/<process id>-<n>` in the system's
+temporary folder, so several of them in one app don't get in each other's way.
 
 ## Previews
 

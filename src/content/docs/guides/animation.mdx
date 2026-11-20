@@ -29,6 +29,9 @@ Button("Toggle", move || with_animation(Animation::spring(0.5, 0.825), || expand
 Everything that changes because of what you did inside it animates, including views moving and
 resizing, and views appearing and disappearing.
 
+Calls can nest. Inside an inner `with_animation`, its animation applies. Once it returns, the outer
+call's animation applies again to the changes that follow.
+
 ## Animating whenever a value changes
 
 Sometimes it's simpler to say "this view always animates when this value changes", wherever the
@@ -50,7 +53,7 @@ Circle()
 ```
 
 The value can be a state, a closure, or a plain value; Elegance compares it to its previous value
-to see whether it changed.
+to see whether it changed.<Lang only="cpp" inline> An empty `std::function` or a null pointer as the value throws `UsageError`.</Lang>
 
 ## Curves and springs
 
@@ -113,7 +116,10 @@ let back = Animation::custom(|t| {
 ```
 
 The function can go below 0 or above 1 to undershoot or overshoot; when the time is up, the value
-lands where it's going regardless. It runs every frame, so keep it quick.
+lands where it's going regardless. It runs every frame, so keep it quick. Where it returns a value
+that isn't a finite number, the animation is linear instead.<Lang only="cpp" inline> An exception
+thrown by the function goes on to the code that reads the animation; on the UI thread, that ends
+`App::run`.</Lang>
 
 <Lang only="cpp">
 
@@ -173,20 +179,29 @@ Colors, opacity, and transitions inside it still animate.
 
 ## Repeating animations
 
-<Lang only="rust">
+An animation can play several times, or keep going for as long as the view is on screen: loading
+indicators, a pulsing badge. `repeat_count` plays it a number of times, and `repeat_forever` keeps
+going until the value changes or the view goes away. With *autoreverses*, every other repeat runs
+backward, so the animation goes back and forth. Without it, each repeat starts over from the
+beginning, like a spinner turning.
+<Lang only="cpp" inline>Autoreverses is the default; pass `false` to turn it off.</Lang><Lang only="rust" inline>In Rust, you always say which you want.</Lang>
 
-The C++ API can repeat an animation a number of times, or forever, for loaders and attention
-effects. The Rust bindings don't have repeating animations yet.
+```cpp
+Badge().scale_effect([=] { return pulsing() ? 1.2f : 1.f; })
+    .animation(Animation::ease_in_out(0.6).repeat_count(3), pulsing);
+Spinner().rotation_effect([=] { return spinning() ? 360.f : 0.f; })
+    .animation(Animation::linear(1).repeat_forever(false), spinning);
+```
 
-</Lang>
+```rust
+# let (pulsing, spinning) = (State::new(false), State::new(false));
+Text("3").scale_effect(move || if pulsing.get() { 1.2 } else { 1.0 })
+    .animation(Animation::ease_in_out(0.6).repeat_count(3, true), pulsing)
+Text("Loading").rotation_effect(move || if spinning.get() { 360.0 } else { 0.0 })
+    .animation(Animation::linear(1.0).repeat_forever(false), spinning)
+```
 
 <Lang only="cpp">
-
-An animation can play several times, or keep going for as long as the view is on screen: loading
-indicators, a pulsing badge. `repeat_count(n)` plays it `n` times, and `repeat_forever()` keeps
-going until the value changes or the view goes away. By default every other repeat runs backward,
-so the animation goes back and forth; pass `false` to start over from the beginning each time
-instead, like a spinner turning.
 
 Combined with `on_appear`, which runs when a view appears, this is all a loader needs. Each dot
 here starts a little further along with a negative delay, so they chase each other:

@@ -204,9 +204,10 @@ Set these before `add_subdirectory`, or with `-D` when you configure:
 | `ELG_BUILD_SHARED` | `ON` | Build Elegance as a shared library. `OFF` links it into your app; [hot reload](../../guides/hot-reload/) needs `ON`. |
 | `ELG_ICONS` | `ON` | Embed the Phosphor icon set (regular, bold, and fill; about 1.4 MB). |
 | `ELG_ICONS_EXTRA_WEIGHTS` | `ON` | Also embed Phosphor's thin, light, and duotone styles (about 1.6 MB). |
-| `ELG_ACCESSIBILITY` | `ON` | Screen reader support, through AccessKit. |
+| `ELG_ACCESSIBILITY` | `ON` | Screen reader support, through AccessKit, which comes from Elegance's own vcpkg port. On Linux on ARM64, AccessKit is built from source, which needs Rust 1.87 or later. |
 | `ELG_BUILD_SANDBOX` | top level | Elegance's sandbox app and, in a shared build, the hot reload host. |
 | `ELG_BUILD_TESTS` | top level | Elegance's unit tests (needs the vcpkg `tests` feature). |
+| `ELG_TRACY` | `OFF` | A build for the [Tracy profiler](../../guides/debugging/#profiling-with-tracy) (needs the vcpkg `profiling` feature). |
 
 ## Linking statically
 
@@ -228,21 +229,35 @@ the app needs nothing beside it but Windows. Elegance notices the triplet and bu
 to match. An app comes to about 20 MB.
 
 Because vcpkg reads only the top-level project's manifest, your project then lists Elegance's
-dependencies in its own `vcpkg.json`:
+dependencies in its own `vcpkg.json`. Leave out `accesskit-c` if you turn off `ELG_ACCESSIBILITY`:
 
 ```json title="vcpkg.json"
 {
   "name": "my-app",
   "version": "0.1.0",
   "dependencies": [
+    "dawn",
+    { "name": "boost-asio", "default-features": false, "features": ["ssl"] },
+    "boost-beast",
+    "boost-url",
+    "openssl",
     "freetype",
     "harfbuzz",
     "miniaudio",
     { "name": "msdfgen", "default-features": false },
-    { "name": "stb", "platform": "!windows" },
     "sdl3",
-    "dawn"
+    "accesskit-c"
   ]
+}
+```
+
+vcpkg has no `accesskit-c` port, and Elegance needs a patched `sdl3`, so your project also uses
+Elegance's own ports, in `cmake/ports`. Point a `vcpkg-configuration.json` beside your manifest at
+them:
+
+```json title="vcpkg-configuration.json"
+{
+  "overlay-ports": ["./external/elegance/cmake/ports"]
 }
 ```
 
@@ -260,7 +275,8 @@ Without them Direct3D 12 compiles shaders with the older FXC, and the first fram
 ## Working on Elegance itself
 
 To build Elegance's own sandbox and tests, clone it and use one of its CMake presets
-(`windows-debug`, `macos-debug`, `linux-debug`, and their `-release` versions):
+(`windows-debug`, `macos-debug`, `linux-debug`, their `-release` versions, and the
+`-tracy` versions for [profiling](../../guides/debugging/#profiling-with-tracy)):
 
 ```sh
 cmake --preset macos-debug
@@ -271,5 +287,16 @@ cmake --build build/macos-debug
 The macOS presets target macOS 13.3, and build vcpkg's dependencies for the same version with the
 overlay triplet in `cmake/triplets/`. If a build warns that dependencies were built for a newer
 macOS, configure again with the preset: that rebuilds them.
+
+On Linux, the `linux-clang-libcxx-debug` and `-release` presets build with Clang and libc++
+instead of GCC. Any build with Clang and `-stdlib=libc++` in its C++ flags works the same way,
+with no other settings: Elegance's dependencies are then built against libc++ too. The presets
+use `clang`; pick Clang 19 or later with `-DCMAKE_CXX_COMPILER=clang++-19
+-DCMAKE_C_COMPILER=clang-19` where `clang` is older.
+
+To look for memory and threading bugs, `linux-clang-libcxx-asan` and `macos-asan` build with
+AddressSanitizer and UndefinedBehaviorSanitizer, and `linux-clang-libcxx-tsan` and `macos-tsan`
+build with ThreadSanitizer. In any build on Linux or macOS, the CMake option `ELG_SANITIZER`
+(`address` or `thread`) does the same.
 
 </Lang>

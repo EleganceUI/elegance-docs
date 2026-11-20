@@ -51,9 +51,18 @@ todos.update(|list| list.clear()); // the same, as a closure
 Writing the value a state already has does nothing. Changing it in place always counts as a
 change, since Elegance can't tell what you did to it.
 
+<Lang only="cpp">
+
+Reading a state gives you a reference to its value, not a copy. The reference stays valid until
+the next write to the state, or until its last handle is gone, so copy anything that has to
+outlive a write. For example, `for (auto& todo : todos()) todos.update(...)` goes on reading the
+old value after the first update has freed it.
+
+</Lang>
+
 <Aside type="caution">
 State belongs to the UI thread.
-<Lang only="cpp" inline>Using it from another thread throws `elg::UsageError`.</Lang>
+<Lang only="cpp" inline>Writing it from another thread throws `elg::UsageError`, and so does reading it, in debug builds.</Lang>
 <Lang only="rust" inline>Its handles aren't `Send`, so the compiler won't let another thread have one.</Lang>
 To finish work done on another thread, hand the result back with `post_to_ui_thread`, as in
 [Networking](../networking/).
@@ -82,8 +91,9 @@ Text(move || format!("{} of {}", done.get(), total.get()))
 Text("{done} of {total}") // the same, as interpolated text
 ```
 
-Changes are collected and applied before the next frame, so a closure that reads three states runs
-once even if all three changed.
+Changes are applied right after the event that made them, before the next frame. So a closure that
+reads three states runs once, even if one click changed all three. Changes made by two events in
+the same frame are applied after each of them, so the closure can run twice.
 
 Everything else runs only once: your view functions, a component's body, a style's body. Reading
 a state there gets its current value and nothing more:
@@ -240,6 +250,15 @@ elg! { Text("{remaining} left") }
 
 <Lang only="rust">`state.map(f)` is a shorthand for a computed value that depends on one state.</Lang>
 
+<Lang only="cpp">
+
+If the function throws, the computed value keeps that exception. Every read throws it again,
+without running the function, until one of the states it read before throwing changes. The next
+read then runs the function again. If it succeeds, that counts as a change, even when the new
+value equals the last good one.
+
+</Lang>
+
 ## Effects
 
 An effect runs a function right away, and again whenever a state it read changes. Use one to keep
@@ -257,7 +276,17 @@ effect(move || save_settings(theme.get(), font_size.get()));
 ```
 
 Make effects while building views. They stop when those views are removed, so they never outlive
-the part of the interface that made them.
+the part of the interface that made them. Later runs of an effect belong to the same view, so an
+effect or a timer that a run starts also ends with that view.
+
+<Lang only="cpp">
+
+Functions that Elegance will call later have to be there: an empty `std::function` or a null
+pointer passed to `Binding`, `computed`, `effect`, or a closure argument throws `UsageError` right
+away, rather than failing when it's called.
+
+</Lang>
+
 
 ## Several changes at once, and reads that don't subscribe
 
@@ -279,6 +308,11 @@ batch(|| {
 });
 ```
 
+When the outermost `batch` ends, the effects it scheduled run right away. Effects can't run during
+an event handler, an effect, a computed value, or layout, so a batch inside one of those leaves
+its effects to run when that's over. <Lang only="cpp" inline>If the function given to `batch`
+throws, the effects stay scheduled, and the exception goes on to your code.</Lang>
+
 `untrack` reads state inside a reactive closure without subscribing to it, so that state changing
 doesn't make the closure run again:
 
@@ -290,6 +324,38 @@ Text([=] { return std::format("{} (as of {})", value(), untrack([&] { return upd
 # let (value, updated_at) = (State::new(1), State::new(String::new()));
 Text(move || format!("{} (as of {})", value.get(), untrack(|| updated_at.get())))
 ```
+
+## Timers
+
+`after` runs a function once after a delay, in seconds. `every` runs one repeatedly, the first
+time one interval from now. Both run on the UI thread, and changes they make to state apply the
+same way as a click's:
+
+```cpp
+const State<bool> loading(true);
+const Timer hide = after(3, [=] { loading = false; });
+hide.cancel(); // it won't run
+
+Clock().on_appear([=] { every(1, [=] { seconds += 1; }); }); // stops with the view
+```
+
+```rust
+# let (loading, mut seconds) = (State::new(true), State::new(0));
+let hide = after(3.0, move || loading.set(false));
+hide.cancel(); // it won't run
+
+Text("{seconds}").on_appear(move || { every(1.0, move || seconds += 1); }) // stops with the view
+```
+
+A timer started while views are being built, or in `on_appear`, belongs to that view, and stops
+when the view goes away. A timer started anywhere else, such as in a click handler, runs until it
+has fired (`after`) or until you cancel it (`every`). Dropping the `Timer` doesn't stop it; call
+`cancel()`, and use `active()` to check whether it's still going. If the app falls behind, `every`
+skips the runs it missed instead of making them up.
+
+A delay of 0 means as soon as the current event has been handled, and a negative one counts as 0.
+`every`'s interval is at least a millisecond. An infinite delay gives a timer that stays active
+but never fires. <Lang only="cpp" inline>A NaN delay throws `UsageError`, and starts nothing. An empty function gives a timer that's never active.</Lang><Lang only="rust" inline>A NaN delay panics, and starts nothing.</Lang>
 
 ## Where to keep state
 

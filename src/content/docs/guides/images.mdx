@@ -37,8 +37,28 @@ relative to the current directory, so use absolute paths for files the user pick
 </Lang>
 
 Pictures are decoded in the background and appear when they're ready. Their size is known right
-away, so nothing jumps when they appear. A file that can't be read shows nothing, with a warning
-in the log.
+away, so nothing jumps when they appear. A file that can't be read, or whose image has no pixels, shows
+nothing, with a warning in the log.
+
+### Size limits
+
+Two limits keep huge pictures from using up memory. An image is decoded at most 8192 pixels on its
+longest side: a larger one is scaled down while it's decoded, keeping its proportions, and its
+size in points stays the same. The graphics card can lower that limit further, but never below
+8192. And an image with more than 2²⁷ pixels (about 134 million) in total isn't decoded at all, but
+treated like a file that can't be read, with a warning that names the limit. Lower `max_pixels`
+for images from sources you don't trust, or raise it for very large ones. 0 means the default:
+
+```cpp
+Image({.file = "scan.tiff", .max_side = 2048})              // decoded at most 2048 pixels wide or high
+Image({.data = uploaded, .max_pixels = 4096 * 4096})        // refuse anything larger
+```
+
+```rust
+# let uploaded: &'static [u8] = &[];
+Image(ImageSource::file("/path/to/scan.tiff").max_side(2048)) // decoded at most 2048 pixels wide or high
+Image(ImageSource::data(uploaded).max_pixels(4096 * 4096))     // refuse anything larger
+```
 
 ## Sizing
 
@@ -74,8 +94,10 @@ drawn smaller than their real size.
 
 ## Images from the web
 
-`AsyncImage` downloads an image over HTTP(S) when it's first shown. It shows a spinner while
-loading, the image when it arrives, and a placeholder icon if it fails:
+`AsyncImage` downloads an image over HTTP(S) when it's first shown. While it loads, it shows a
+progress indicator that doesn't say how far along it is (a bar, by default). Then it shows the
+image when it arrives, or a placeholder icon if the download fails, with the error as its
+tooltip:
 
 ```cpp
 AsyncImage("https://example.com/avatar.png", {.content_mode = ContentMode::fill})
@@ -91,11 +113,19 @@ AsyncImage("https://example.com/avatar.png", content_mode: .fill)
 
 With `content_mode` the image is resizable and keeps its aspect ratio that way; without it, it's
 shown at its own size. Downloads are cached in memory, so a list that scrolls back doesn't fetch
-the same images again.
+the same images again. `AsyncImage` has the same `max_side` and `max_pixels` limits, and an image
+over `max_pixels` counts as a failed download. Each failure is logged as a warning, with the URL
+and the reason. With your own view for each phase, `AsyncImagePhase`'s `error` says why it failed,
+and names the limit when that's the reason.
 
 Downloads are secure by default: certificates are checked against the system's, and a redirect
-never goes from `https` to `http`. A download gives up after 30 seconds, and images over 64 MB are
-refused. Several images from one server share a connection.
+never goes from `https` to `http`. Several images from one server share a connection. A download
+fails, with an error that names the limit, when:
+
+- it isn't done after 30 seconds, redirects included;
+- it's redirected more than 5 times;
+- the response's header is larger than 64 KB;
+- the image itself is larger than 64 MB.
 
 Downloads go through the system's proxy settings, PAC scripts included, on macOS and Windows.
 `HTTPS_PROXY`, `http_proxy` and `NO_PROXY` in the environment take precedence, and are the only
@@ -110,7 +140,8 @@ Downloaded images are also kept on disk, for as long as their server's `Cache-Co
 `Expires` header allows. After that, they're checked with the server (`ETag`,
 `Last-Modified`), which usually answers that nothing changed. When the server can't be reached,
 the copy on disk is shown, unless the server said it must always be checked. Responses with
-`Cache-Control: no-store` aren't kept.
+`Cache-Control: no-store` aren't kept. Redirects are cached too, each under its own URL, so a
+redirect that's still fresh is followed without asking the server.
 
 The cache is 256 MB, in a folder for your app inside the user's cache folder. When it's full,
 the images used longest ago go first. Change it with `set_image_cache`, from the UI thread:

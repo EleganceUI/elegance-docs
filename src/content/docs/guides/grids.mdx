@@ -55,7 +55,8 @@ There are three kinds of column:
 
 An adaptive column is what makes a grid respond to the window: widen the window and more columns
 appear, and the columns always fill the width exactly. With less room than one column's minimum,
-you get a single narrower column instead of content spilling out.
+you get a single narrower column instead of content spilling out. An adaptive item makes at most 10,000 columns.
+Past that, they're wider than the minimum.
 
 Each column can have its own spacing after it, and its own alignment for the views in its cells:
 

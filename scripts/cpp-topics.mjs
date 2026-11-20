@@ -183,6 +183,7 @@ export default {
 	],
 	'guides/environment': [
 		['Reading and setting values', ['environment.h:EnvironmentValues', 'environment.h:Environment', 'environment.h:resolved_in', ...view('environment')]],
+		['Keys by name', ['environment.h:SharedKeyValue']],
 		['Built-in keys', ['environment.h']],
 	],
 	'guides/accessibility': [['Describing views', ['view.h:View#Accessibility', 'view.h:AccessibilityRole']]],

@@ -32,6 +32,8 @@ Button(Text(move || if playing.get() { "Pause" } else { "Play" }), toggle) // a 
 
 A button's label can be any view. The button runs its action when it's clicked, or when it has
 focus and someone presses Return or Space.
+<Lang only="cpp" inline>An empty action, such as an empty `std::function`, throws `UsageError`
+when you make the button, rather than when it's clicked.</Lang>
 
 There are three built-in looks. The default fills the button with the tint color; the others are
 an outlined button and a plain one, for buttons that shouldn't stand out:
@@ -193,6 +195,11 @@ elg! {
 Text fields do what people expect: typing, input methods for Chinese, Japanese, and Korean,
 selecting with the mouse or Shift and the arrow keys, double-clicking a word, triple-clicking
 everything, moving by words, copy and paste, and undo.
+
+A text field only holds valid UTF-8. Broken sequences, whether they're in the bound text or come
+from typing, pasting, or a screen reader, are shown as the replacement character, �. The field
+writes that cleaned text to its binding when the text is edited. It doesn't write to the binding
+just to clean text it was given.
 
 A **secure** field shows a dot for each character, and its text can't be copied out. Like the
 system's own password fields, it switches input methods off while you type in it, and on a Mac it

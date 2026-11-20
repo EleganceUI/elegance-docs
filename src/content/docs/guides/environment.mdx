@@ -56,6 +56,17 @@ impl EnvironmentKey for CompactKey {
 }
 ```
 
+<Lang only="cpp">
+
+A key is identified by its `name` and its value type together. Two key types with the same
+`name` and `Value` share one value, even when they're declared in different places. Two with the
+same `name` and different `Value` types are separate keys, and neither sees the other's value.
+This holds for seven value types: `bool`, `int`, `std::int64_t`, `float`, `double`, `std::string`
+and `Color`. For any other value type, the `name` alone identifies the key, so give each such key a
+name of its own.
+
+</Lang>
+
 Set it with <Lang only="cpp" inline>`.environment<Key>(value)`</Lang><Lang only="rust" inline>`.environment::<Key>(value)`</Lang>:
 
 ```cpp
@@ -113,3 +124,69 @@ Circle().fill(Prop::from_env(|env| ShapeStyle::Color(env.get::<TintKey>().opacit
 ```
 
 The environment's `get` reads any key, and `color` tells you what a theme color is there.
+
+## Keys by name
+
+Keys can be shared between languages by name, so a value set from Rust can be read by a C++ key,
+and the other way round. A shared key's value has to be one of seven types:
+
+| C++ | Rust |
+| --- | --- |
+| `bool` | `bool` |
+| `int` | `i32` |
+| `std::int64_t` | `i64` |
+| `float` | `f32` |
+| `double` | `f64` |
+| `std::string` | `String` |
+| `Color` | `Color` |
+
+<Lang only="cpp">
+
+`EnvironmentValues` can also get and set a key by a name you give it while the app runs, without
+a key type. `get_named<T>(name)` returns the value of the key with that name and a `T` value.
+`set_named<T>(name, value)` sets it, as `set` would for a key type with that `name` and `Value`.
+`T` has to be one of the seven types (the `SharedKeyValue` concept).
+
+```cpp
+Circle().fill([](const EnvironmentValues& env) {
+    // Set by CompactKey, or by set_named<bool>("myapp.compact", ...).
+    const bool compact = env.get_named<bool>("myapp.compact").value_or(false);
+    return compact ? Color::hex(0x7AA2F7) : Color::hex(0x9ECE6A);
+});
+```
+
+Keys read by name have no default. `get_named` returns `std::nullopt` when the key isn't set, and
+also when a key with that name is set with a value of another type. Like `get`, it's a tracked
+read: a closure that calls it runs again when the value changes. `set_named` takes a plain value
+or a reactive one, the same as `set`.
+
+</Lang>
+
+<Lang only="rust">
+
+A key is Rust's own until it has a name. To share it, give it a `NAME`, and give it a `Value` of
+one of the seven types:
+
+```rust
+struct CompactKey;
+
+impl EnvironmentKey for CompactKey {
+    type Value = bool;
+    const NAME: Option<&'static str> = Some("myapp.compact"); // shared with C++ keys of this name
+    fn default_value(_: &EnvironmentValues) -> bool { false }
+}
+```
+
+Such a key has the same value as a C++ key with that name and value type. You set and read it
+the usual way, and changes made from either language reach the other. Some keys aren't shared:
+
+- **Keys without `NAME`** (the default). They're kept apart from C++, so C++ can't see them.
+- **Keys with a `NAME` but another value type**, such as a `Vec`, an enum or your own struct.
+  These keys still work, but only within Rust, and you get no error to say they aren't shared.
+
+A key reads its `default_value` when it isn't set, and also when a key with that name is set with
+a value of another type. Choose names that are unique and won't change, such as
+`"myapp.compact"`: if you rename one, it stops being shared. The built-in keys, such as `FontKey`
+and `TintKey`, are already Elegance's own keys and need no `NAME`.
+
+</Lang>

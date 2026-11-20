@@ -56,7 +56,13 @@ choose_folders(ChooseFolderOptions::default(), |folders| { /* ... */ });
 The dialogs open over the active window, and your app keeps running while they're open. The
 callback gets what was chosen, or nothing if people cancelled. A filter with no extensions means
 all files, and `directory` chooses where the dialog starts. The save dialog asks about replacing a
-file that's already there, but doesn't create the file; that's up to you.
+file that's already there, but doesn't create the file; that's up to you. Dialogs still open when
+`run()` returns are closed, and their callback is dropped without being called.
+
+Text you hand to the system, such as notifications, the tray icon's tooltip and menu, dialog filters
+and suggested file names, has to be valid UTF-8. Anything malformed is replaced with the
+replacement character (U+FFFD) before the system sees it. The same goes for window titles, the
+menu bar, and the badge.
 
 ## Notifications
 
@@ -70,8 +76,10 @@ notify({.title = "Export finished", .body = "Saved 12 photos", .on_click = [=] {
 notify(Notification::new("Export finished", "Saved 12 photos").on_click(show_folder));
 ```
 
-The callback runs when people click the notification. Notifications also stay in the system's
-notification center, and people can turn them off in its settings.
+The callback runs when people click the notification, as long as the app is running: once `run()`
+returns, clicks do nothing. Notifications also stay in the system's notification center, and
+people can turn them off in its settings. Sending one needs a running app;
+<Lang only="cpp" inline>without one, `notify` throws `UsageError`.</Lang><Lang only="rust" inline>without one, `notify` panics.</Lang>
 
 <Aside>
 On macOS, notifications need your app to be an app bundle, which
@@ -79,6 +87,12 @@ On macOS, notifications need your app to be an app bundle, which
 Run as a bare executable, notifications are only written to the log. macOS asks people the first
 time your app sends one.
 </Aside>
+
+On Windows, notifications show under the app's *AppUserModelID*, which Windows wants a Start menu
+shortcut to carry. If your app doesn't set its own ID, Elegance makes one from the executable's
+name, and the first time the app sends a notification, it adds a shortcut to the executable to
+the Start menu, named after it. If your app sets its own ID, its installer has to create that
+shortcut.
 
 ## Tray icon
 
@@ -125,10 +139,12 @@ fn main() -> Result<std::process::ExitCode, Error> {
 ```
 
 Menu items can run an action, be a check box, be turned off, or open a submenu.
-`set_tooltip` and `set_menu` change them later. Without an icon, the tray shows a dot in your
-theme's accent color.
+`set_tooltip` and `set_menu` change them later. The picture is decoded at most 256 pixels on a
+side (or the image's own `max_side`, if that's smaller), and within its `max_pixels`. Without a
+picture, or with one that can't be read (which logs a warning), the tray shows a plain blue dot.
 
-<Lang only="cpp">
+Tray icons are taken down when `run()` returns. A tray icon you still hold after that does
+nothing.
 
 ## The menu bar
 
@@ -138,7 +154,8 @@ closed.
 
 Give an item a *role* and it does the standard thing, with the standard title and shortcut, unless
 you give it your own: `quit`, `about`, `settings`, the editing commands (`undo`, `cut`, `copy`,
-`paste`, and so on, which go to the text field people are typing in), and the window commands. A
+`paste`, and so on, which go to the text field people are typing in), and the window commands.
+Copy and Select All also work on [selectable text](../text-and-icons/#selecting-and-copying). A
 menu with the `app` role is the application menu on macOS, named after your app; elsewhere, its
 items join the first menu.
 
@@ -152,6 +169,37 @@ app.menu_bar({
                                   {.role = MenuRole::cut}, {.role = MenuRole::copy}, {.role = MenuRole::paste}}},
     {.title = "Window", .role = MenuRole::window, .submenu = {{.role = MenuRole::minimize}, {.role = MenuRole::zoom}}},
 });
+```
+
+```rust
+# #[component] fn Root() -> impl IntoView { elg! { Text("App") } }
+# let (open_settings, new_note, export_notes) = (|| {}, || {}, || {});
+let app = App::new();
+app.window(WindowDesc::new("Notes"), Root);
+app.menu_bar(vec![
+    MenuBarItem::menu("", vec![
+        MenuBarItem::role(MenuRole::About),
+        MenuBarItem::separator(),
+        MenuBarItem::new("", open_settings).with_role(MenuRole::Settings),
+        MenuBarItem::separator(),
+        MenuBarItem::role(MenuRole::Quit),
+    ])
+    .with_role(MenuRole::App),
+    MenuBarItem::menu("File", vec![
+        MenuBarItem::new("New Note", new_note).shortcut(KeyboardShortcut::new(Key::N)),
+        MenuBarItem::new("Export…", export_notes),
+    ]),
+    MenuBarItem::menu("Edit", vec![
+        MenuBarItem::role(MenuRole::Undo),
+        MenuBarItem::role(MenuRole::Redo),
+        MenuBarItem::separator(),
+        MenuBarItem::role(MenuRole::Cut),
+        MenuBarItem::role(MenuRole::Copy),
+        MenuBarItem::role(MenuRole::Paste),
+    ]),
+    MenuBarItem::menu("Window", vec![MenuBarItem::role(MenuRole::Minimize), MenuBarItem::role(MenuRole::Zoom)])
+        .with_role(MenuRole::Window),
+]);
 ```
 
 A shortcut uses the platform's main modifier unless you say otherwise: Command on macOS, Control
@@ -170,18 +218,18 @@ set_progress(0, ProgressState::indeterminate); // busy, without knowing how far 
 request_attention();                    // bounce the Dock icon, or flash the taskbar button
 ```
 
+```rust
+# use elegance::desktop::*;
+set_badge(Some("3"));                           // a short label, like an unread count; None removes it
+set_progress(Some(0.4), ProgressState::Normal); // a progress bar on the icon; None removes it
+set_progress(None, ProgressState::Normal);
+set_progress(Some(0.0), ProgressState::Indeterminate); // busy, without knowing how far along
+request_attention(false);                       // bounce the Dock icon, or flash the taskbar button
+```
+
 `request_attention` does nothing while your app is in front. Pass `true` to keep asking until
 people switch to it. On Linux, these work with launchers that support them, such as GNOME's Dash
 to Dock and KDE's, and badges can only show numbers there.
-
-</Lang>
-
-<Lang only="rust">
-
-The C++ API also has a menu bar (`App::menu_bar`), and can put a badge or a progress bar on your
-app's icon in the Dock or taskbar. The Rust bindings don't have these yet.
-
-</Lang>
 
 ## Drag and drop
 

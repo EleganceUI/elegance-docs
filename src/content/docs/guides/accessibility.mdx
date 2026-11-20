@@ -6,8 +6,10 @@ description: "How Elegance apps work with screen readers, and the modifiers that
 import Lang from '../../../components/Lang.astro';
 
 Elegance describes every window's contents to screen readers and other assistive technology,
-through [AccessKit](https://accesskit.dev). Today that works on Windows, with Narrator, NVDA, and
-JAWS, and with testing tools that use UI Automation. macOS and Linux are coming.
+through [AccessKit](https://accesskit.dev). That works on Windows with Narrator, NVDA, and JAWS,
+and with testing tools that use UI Automation. It works on macOS with VoiceOver, and on Linux with
+Orca and other screen readers that use AT-SPI, under both X11 and Wayland. On Linux, if there's no
+accessibility bus, windows still open without delay.
 
 ## What you get for free
 
@@ -66,7 +68,9 @@ These modifiers change what's said:
 # };
 ```
 
-Labels, values, and hints can follow your state, like any other argument.
+Labels, values, and hints can follow your state, like any other argument. Any text in them
+that isn't valid UTF-8 is cleaned up, with the replacement character (�) for each broken sequence,
+before a screen reader gets it. So is the window's title.
 
 ### Custom controls
 
@@ -99,6 +103,11 @@ ZStack(alignment: .leading) {
 .accessibility_value(move || if dark.get() { "On" } else { "Off" })
 ```
 
+A screen reader can't activate a view that's disabled, either with `.disabled()` or inside a
+disabled view: its action, your own `accessibility_action` included, doesn't run. A screen
+reader's request is handled like an event, so state it changes takes effect once the request is
+over.
+
 ### Rows
 
 `accessibility_element()` makes a group read as one line, made of the text inside, instead of
@@ -121,12 +130,14 @@ HStack {
 
 ## Checking your app
 
-Turn on Narrator (Ctrl+Win+Enter), and go through your app with Tab and Narrator's keys.
-Accessibility Insights for Windows, and the Inspect tool that comes with the Windows SDK, show
-exactly what your app tells screen readers.
+Turn on the system's screen reader and go through your app with Tab and the screen reader's keys:
+Narrator (Ctrl+Win+Enter) on Windows, VoiceOver (Cmd+F5) on macOS, or Orca on Linux.
+Accessibility Insights for Windows and the Inspect tool that comes with the Windows SDK show
+exactly what your app tells screen readers on Windows, and so does Accessibility Inspector, which
+comes with Xcode, on macOS.
 
 ## Not yet supported
 
-Screen readers on macOS (VoiceOver) and Linux (Orca), announcing changes as they happen, the
+Announcing changes as they happen, the
 cursor and selection inside text fields, and following the system's reduced-motion and
 high-contrast settings are planned.

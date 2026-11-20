@@ -3,6 +3,8 @@ title: Audio
 description: "Playing sound effects and music, and controlling playback from the UI."
 ---
 
+import Lang from '../../../components/Lang.astro';
+
 Elegance plays sound through the system's default output, and follows it when it changes, for
 example when headphones are plugged in. It reads **WAV**, **FLAC**, and **MP3** files.
 
@@ -116,8 +118,14 @@ let tone = AudioStream::with_render(AudioStreamOptions { channels: 1, ..Default:
 # Ok(()) }
 ```
 
+If the render function <Lang only="cpp" inline>throws</Lang><Lang only="rust" inline>panics</Lang>, the stream goes silent and doesn't call it again. The
+<Lang only="cpp" inline>exception</Lang><Lang only="rust" inline>panic</Lang> is passed on to the UI thread, where it reaches the app's
+[error handler](../debugging/#errors-you-can-handle).
+
 A stream starts playing as soon as it's made; `stop()` and `start()` pause and resume it.
-`audio_output_devices()` lists the outputs, if you'd rather not use the default one.
+`audio_output_devices()` lists the outputs, if you'd rather not use the default one: give a
+device's `id` as the stream's `device_id`. If that device isn't connected, the stream doesn't play
+on any device, and `error()` says the output isn't connected.
 
 ## Threads and devices
 

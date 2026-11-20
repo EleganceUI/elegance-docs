@@ -1,6 +1,6 @@
 ---
 title: Debugging and errors
-description: "Look inside a running window with the inspector, read the log, handle errors, and report crashes."
+description: "Look inside a running window with the inspector, read the log, handle errors, profile with Tracy, and report crashes."
 ---
 
 import Lang from '../../../components/Lang.astro';
@@ -34,7 +34,19 @@ Elegance writes its log to the standard error output, with a prefix for each kin
 
 Debug builds say more, such as which fonts were loaded and how frames reach the screen. When
 something doesn't appear, run your app from a terminal, or look at your editor's output, to see
-why.
+why. Errors that WebGPU reports about how Elegance used the graphics card are logged as errors,
+starting with `webgpu:`, in every build, and the app goes on.
+
+## Seeing what's redrawn
+
+Elegance redraws only the parts of a window that changed, and doesn't present a frame at all when
+nothing visible changed. To see what it redraws, set an environment variable to `1` before the app
+starts:
+
+| Variable | What it does |
+| --- | --- |
+| `ELG_SHOW_DAMAGE` | Tints the part of each frame that was redrawn magenta. |
+| `ELG_FULL_REDRAW` | Always redraws the whole window, to rule out a part that didn't update. |
 
 ## Errors you can handle
 
@@ -45,19 +57,27 @@ Elegance reports problems that are yours to handle by throwing exceptions, all d
 
 | Exception | When |
 | --- | --- |
-| `elg::UsageError` | Elegance was used the wrong way: an icon name that doesn't exist, an SVG path that doesn't parse, `.resizable()` on something that isn't an image, state used off the UI thread. The message says what was wrong. |
+| `elg::UsageError` | Elegance was used the wrong way: an icon name that doesn't exist, an SVG path that doesn't parse, `.resizable()` on something that isn't an image, an empty function where Elegance needs one, a timer delay or video volume that's NaN, state written off the UI thread (or read off it, in debug builds). The message says what was wrong. |
 | `elg::ResourceError` | A font, sound, or other file couldn't be loaded. |
-| `elg::GpuError` | There's no suitable graphics card, it ran out of memory, or it stopped working and couldn't be recovered. |
+| `elg::GpuError` | There's no suitable graphics card, it ran out of memory, or it stopped working and couldn't be recovered (below). |
 | `elg::PlatformError` | The operating system couldn't do what was asked. |
 
-An exception thrown by your own code, in an event handler, an effect, or a window's content, comes
-out of `app.run()` after the app has shut down cleanly, so a `try` around it catches it:
+When your own code throws an exception, Elegance writes the exception to the log, and the app
+goes on running. This covers a view's body, an effect, an event handler, a task, a timer, and other
+callbacks. To decide for yourself, give the app an error handler with `on_error`. It runs on the
+UI thread, between events, for each such exception. It gets an `AppError`, and returns
+`ErrorAction::resume` to keep going or `ErrorAction::quit` to end the run. After `quit`, `app.run()`
+throws the exception, so a `try` around it catches it:
 
 ```cpp
 int main() {
     try {
         elg::App app;
         app.window({.title = "App"}, Root);
+        app.on_error([](const elg::AppError& error) {
+            std::fprintf(stderr, "error: %s\n", error.message().c_str());
+            return error.code == elg::AppCode::body ? elg::ErrorAction::quit : elg::ErrorAction::resume;
+        });
         return app.run();
     } catch (const elg::Error& e) {
         std::fprintf(stderr, "error: %s\n", e.what());
@@ -65,6 +85,28 @@ int main() {
     }
 }
 ```
+
+An `AppError` holds the `exception` that was thrown, as a `std::exception_ptr`. Its `message()`
+gives you the exception's `what()`. Its `code` says what kind of code threw:
+
+| `AppCode` | Where it was thrown |
+| --- | --- |
+| `body` | A view's body, while the view was being placed. |
+| `effect` | An effect, or a closure that gives a modifier its value. |
+| `event_handler` | An event handler, or the action of a control, menu item, or shortcut. |
+| `task` | A task posted to the UI thread. |
+| `timer` | A timer's action. |
+| `lifecycle_action` | `on_appear` or `on_disappear`. |
+| `layout` | A `Layout`, a layout modifier, or a size observer. |
+| `drawing` | A `Canvas`'s draw function. |
+| `callback` | Any other callback, such as one from a language binding. |
+
+You can set the handler before `run()` or while the app runs. If the handler throws, Elegance only
+logs that exception. Running out of memory (`std::bad_alloc`) ends the run without calling the
+handler.
+
+This includes the `elg::Error`s that Elegance throws when your code calls it the wrong way, such
+as a `UsageError` from inside a click handler.
 
 In debug builds, each `elg::Error` also records the stack where it was thrown.
 
@@ -81,23 +123,189 @@ return a `Result` with an `elegance::Error`. Its `kind()` says what went wrong:
 | `ErrorKind::Gpu` | There's no suitable graphics card, it ran out of memory, or it stopped working and couldn't be recovered. |
 | `ErrorKind::Platform` | The operating system couldn't do what was asked. |
 | `ErrorKind::Usage` | Elegance was used the wrong way. |
+| `ErrorKind::Elegance` | Any other error from Elegance. |
+| `ErrorKind::Other` | Something that isn't an error from Elegance, such as an exception of another kind from C++ code, or a panic. |
 
 Using Elegance the wrong way, for example with an icon name that doesn't exist, an SVG path that
 doesn't parse, `.resizable()` on something that isn't an image, or state used off the UI thread,
 panics with a message that says what was wrong, since it's a bug in the code rather than
 something to handle.
 
-A panic in your own code, in an event handler, an effect, or a component, comes out of `run()` on
-the main thread, after the app has shut down cleanly, so it behaves like any other panic in your
-program.
+When your own code panics, or Elegance reports an error while your code runs, Elegance writes it
+to the log, and the app goes on running. This covers a component's body, an effect, an event
+handler, a task, a timer, and other callbacks. To decide for yourself, give the app an error
+handler with `on_error`. It runs on the UI thread, between events, for each such panic or error.
+It gets an `AppError`, and returns `ErrorAction::Resume` to keep going or `ErrorAction::Quit` to
+end the run. After `Quit`, the app shuts down cleanly, and then `run()` either continues the panic
+on the main thread or returns the error as an `Err`:
 
 ```rust
 # #[component] fn Root() -> impl IntoView { elg! { Text("App") } }
 fn main() -> Result<std::process::ExitCode, Error> {
     let sound = Sound::load("assets/click.wav")?; // a missing file is an Err
-    App::new().window(WindowDesc::new("App"), Root).run()
+    App::new()
+        .window(WindowDesc::new("App"), Root)
+        .on_error(|error| {
+            eprintln!("{:?} failed: {}", error.code(), error.message());
+            if error.panicked() { ErrorAction::Quit } else { ErrorAction::Resume }
+        })
+        .run()
 }
 ```
+
+An `AppError` tells you what happened:
+
+- `message()` is the panic's message, or the error's text.
+- `panicked()` is true when Rust code panicked.
+- `kind()` is the `ErrorKind`. A panic is `ErrorKind::Other`, but so is a C++ exception that isn't
+  an Elegance error, so use `panicked()` to tell them apart.
+- `code()` is where it happened, as an `AppCode`: `Body` (a component's body, while the view was
+  being placed), `Effect` (an effect, or a closure that gives a modifier its value),
+  `EventHandler` (an event handler, or the action of a control, menu item, or shortcut), `Task`,
+  `Timer`, `LifecycleAction` (`on_appear` or `on_disappear`), `Layout` (a `Layout`, a layout
+  modifier, or a size observer), `Drawing` (a `Canvas`'s draw function), or `Callback` (anything
+  else).
+
+You can set the handler before `run()` or while the app runs. If the handler itself panics,
+Elegance only logs the panic. Elegance's own errors that don't come from your code still come
+back from `run()` as an `Err`, after a clean shutdown.
+
+</Lang>
+
+### What happens to code that fails
+
+Each failure is written to the log, saying what kind of code failed and with what message. If the
+same kind of code fails with the same message again, in the same frame or the next one, it's only
+counted. It isn't logged again, and the error handler doesn't hear of it again. When the failures
+stop, one line in the log says how many times it happened:
+
+```
+[elg:error] an event handler threw "file not found" 42 times in a row
+```
+
+After the handler chooses to quit, later failures are only logged. The rest of the app keeps
+running in the meantime: other effects, tasks, and timers still run. As for the code that failed:
+
+- **An event handler** ends the event where it failed. The event counts as handled, so Elegance
+  doesn't act on it itself, for example by looking for a menu shortcut. If it happened during a
+  press, the press ends: the view that had the pointer gets a cancel event, gestures start over,
+  and the rest of the press goes to no one. Whatever the handler did before it failed, such as
+  moving focus, stays done.
+- **A repeating timer** keeps going, since it's scheduled again before its action runs.
+- **A component's body** shows nothing in its place (see [custom views](../custom-views/#when-a-body-fails)).
+- **A layout** gives its view no size until the layout is next invalidated (see [custom layouts](../custom-layouts/)).
+- **A `Canvas` draw function** draws nothing that frame.
+
+Callbacks that don't come from an event are covered too. Menu bar items and their check boxes,
+items of a menu drawn in the window, a screen reader's custom actions, and drop handlers count as
+event handlers. Setting a popup's binding back to false when it closes counts as a callback. On
+Linux, failures in the callbacks Elegance gets from the system's libraries, such as for media
+playback and notifications, are handed to the UI thread and reported there as callbacks.
+
+### When the graphics card stops working
+
+If the graphics card stops answering for 5 seconds, Elegance treats it as lost, the same as when
+the system takes it away. It then starts over with a new device and draws every window again. It
+gives up with a GPU error if this happens before the app has started, or if three new devices in a
+row are lost before they draw anything. Closing a window waits at most 5 seconds for the graphics card.
+<Lang only="cpp" inline>GPU images (`elg/gpu_image.h`) your app published on the old device draw nothing
+until it publishes them again.</Lang>
+
+<Lang only="cpp">
+
+## Profiling with Tracy
+
+When frames take too long, a profiling build of Elegance shows you where the time goes, in the
+[Tracy](https://github.com/wolfpld/tracy) profiler. Other builds contain no Tracy code at all.
+
+### Making a profiling build
+
+Turn on the CMake option `ELG_TRACY`, together with vcpkg's `profiling` feature, which brings in
+Tracy's client (version 0.14.1). When you build Elegance from its own repository, the
+`linux-tracy`, `windows-tracy` and `macos-tracy` presets turn on both. They're RelWithDebInfo
+builds with frame pointers, so profiles show Elegance's own functions:
+
+```sh
+cmake --preset linux-tracy
+cmake --build build/linux-tracy
+./build/linux-tracy/bin/sandbox
+```
+
+The client sends nothing until a profiler connects, so you can start the app first and connect
+later.
+
+To profile your own app, which adds Elegance with `add_subdirectory`, Elegance takes its
+dependencies from your app's `vcpkg.json`, so list Tracy there yourself:
+
+```json title="vcpkg.json"
+"dependencies": [
+    { "name": "tracy", "default-features": false, "features": ["on-demand"] }
+]
+```
+
+Then turn on `ELG_TRACY` before Elegance is added, with `set(ELG_TRACY ON)` before
+`add_subdirectory`, or `-DELG_TRACY=ON` when you configure. Build with debug information, for
+example as RelWithDebInfo. Elegance compiles its own code with frame pointers. For your app's
+functions to show in sampled call stacks too, compile your code with `-fno-omit-frame-pointer`
+(GCC and Clang) or `/Oy-` (MSVC).
+
+To add zones of your own, link `Tracy::TracyClient` and use Tracy's macros from
+`<tracy/Tracy.hpp>`, and build Elegance as a static library (`ELG_BUILD_SHARED` off), as the
+`-tracy` presets do. Your app and Elegance then share one Tracy client, which also sends nothing
+until a profiler connects. With a shared Elegance, your app would get a second client of its own.
+
+### Connecting
+
+Connect Tracy's profiler, at the same version as the client (0.14.1), to the running app. You can
+use its GUI, or record ten seconds to a file you open in the GUI later:
+
+```sh
+tracy-capture -o app.tracy -s 10
+```
+
+### What you'll see
+
+Elegance names every thread it starts, each beginning with "Elegance": "Elegance render",
+"Elegance glyphs 1", "Elegance glyphs 2" and so on, "Elegance image decoder", "Elegance network",
+"Elegance audio", "Elegance audio setup", "Elegance recorder", "Elegance hot reload", "Elegance GPU
+retirement", "Elegance GLib", "Elegance camera" and "Elegance video". Its
+work is divided into zones:
+
+| Thread | Zones |
+| --- | --- |
+| UI | Each pass of the event loop: `Events`, `Effects`, `Timers`, `UI tasks`, `Popups`, `Lifecycle actions`, `Idle`, and `Window frame`, whose text is the window's title. Inside a frame: `Layout`, `Paint`, `Accessibility` and `Post frame`. Then `Wait for render`. |
+| Render | Each batch: `Render batch`, `Atlas upload` and `Frame sources`. Then, for each window, `Render window`, containing `Damage`, `Plan` and `Record`. Then `Acquire`, `Submit` and `Present`. |
+| Any | `Wait for GPU`. |
+| Text | `Shape text`, `Lay out text` and `Prepare glyph` on the UI thread; `Generate glyph` and `Glyph cache file` on the glyph threads. |
+| Media | `Decode image` on the image decoder threads; `Import video frame` and `Convert video frame` on the render thread. |
+
+Tracy's statistics view ranks the zones by the time they took. There are two frame sets:
+`Frames` has one frame for each pass of the event loop that built a frame, and `Render` has one
+for each render batch. While a profiler is connected, plots track these values over time:
+
+- **For each window frame:** Elements laid out, Draw commands, Glyphs, Paths, Paint records reused,
+  Paint records built, Glyphs pending and Damage area.
+- **For each flush of effects:** Effects per flush.
+- **For each render batch:** Decoded image bytes, Video texture bytes and Intermediate image
+  bytes.
+
+To see where the time goes inside a zone, Tracy can also sample call stacks, which show up in its
+sampling statistics and flame graph. It does this on Linux when the app runs as root or with
+`kernel.perf_event_paranoid` lowered, and on Windows when it runs as administrator. Tracy doesn't
+sample on macOS.
+
+### Checking a profiling build
+
+`tools/tracy-check.py` runs the sandbox of a profiling build, captures it, and checks that the
+capture has Elegance's zones, frame sets and thread names. On a machine without a display, run it
+under `xvfb-run -a`:
+
+```sh
+xvfb-run -a python3 tools/tracy-check.py build/linux-tracy
+```
+
+It needs `tracy-capture` and `tools/tracy-inspect`, built from Tracy's source at the client's
+version. The comment at the top of `tools/tracy-inspect/CMakeLists.txt` says how.
 
 </Lang>
 

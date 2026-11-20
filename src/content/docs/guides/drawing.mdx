@@ -78,6 +78,29 @@ VStack { Text("Card") }.corner_radius(16)              // clip_shape(RoundedRect
 Button(Text("Tap"), tap).content_shape(Rectangle())    // the whole frame takes clicks
 ```
 
+
+For frosted glass, `.backdrop_blur` blurs whatever the window draws behind the view, inside the
+view's bounds or inside a shape. You can then adjust the blurred backdrop's saturation and
+brightness, and add some grain (`noise`) so smooth gradients don't band. Like `.background`, it goes
+behind everything it wraps, so put a tint on before it:
+
+```cpp
+Text("Now playing").padding(12)
+    .background(Color::white.opacity(0.5f), RoundedRectangle(12))
+    .backdrop_blur(30, RoundedRectangle(12), {.saturation = 1.8f, .noise = 0.02f});
+```
+
+```rust
+Text("Now playing").padding(12)
+    .background_in(Color::WHITE.opacity(0.5), RoundedRectangle(12))
+    .backdrop_blur_in(30, RoundedRectangle(12), |o| o.saturation(1.8).noise(0.02))
+```
+
+The blur radius can follow a state, and it animates. Inside a group that's drawn offscreen, such as
+one with an opacity below 1, a shadow, or a blur, the backdrop only includes what that group drew
+behind the view. A `.blur` after it blurs the view and its backdrop together. Code that reads a
+fill's `value()` finds this fill as a `BackdropFill`, holding the blur and its adjustments.
+
 ## Gradients
 
 `LinearGradient` and `RadialGradient` fill anything a color fills. Pass evenly spaced colors, or

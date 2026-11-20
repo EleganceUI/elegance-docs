@@ -38,6 +38,30 @@ Elegance shapes text properly, with ligatures, kerning, and combining marks. Cha
 doesn't have, such as Chinese, Japanese, or Korean text and symbols, come from the system's
 fonts, and emoji are drawn in color. Right-to-left scripts aren't supported yet.
 
+### Selecting and copying
+
+`.selectable()` lets people select a text with the pointer and copy it:
+
+```cpp
+Text(order.id).selectable();
+Text(log_line).selectable([=] { return !editing(); }); // follows the state
+```
+
+```rust
+# let (order_id, editing) = ("A-1042", State::new(false));
+Text(order_id).selectable(true)
+Text(order_id).selectable(move || !editing.get()) // follows the state
+```
+
+Dragging selects from where the press went down. A double click selects a word, a triple click a
+paragraph, and Shift-click extends the selection. The selection is drawn in the tint. The primary
+modifier with C copies the selection as plain text, and with A selects all the text, unless a
+view that gets the key first takes it. Copy and Select All in the Edit menu work the same way. A
+window has one selection, which goes away when you click anywhere else, or when the text changes,
+stops being selectable, is turned off, or goes away. Over selectable text, the pointer is an
+I-beam, unless the text itself has its own `pointer_style`. Selectable text doesn't take focus.
+Inside a button or another control, text isn't selectable, and presses go to the control.
+
 ## Fonts
 
 A font is a family, a size in points, and a weight. For consistent typography, use the built-in

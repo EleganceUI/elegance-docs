@@ -40,6 +40,26 @@ Pictures are decoded in the background and appear when they're ready. Their size
 away, so nothing jumps when they appear. A file that can't be read shows nothing, with a warning
 in the log.
 
+### Size limits
+
+Two limits keep huge pictures from using up memory. An image is decoded at most 8192 pixels on its
+longest side: a larger one is scaled down while it's decoded, keeping its proportions, and its
+size in points stays the same. The graphics card can lower that limit further, but never below
+8192. And an image with more than 2²⁷ pixels (about 134 million) in total isn't decoded at all, but
+treated like a file that can't be read, with a warning that names the limit. Lower `max_pixels`
+for images from sources you don't trust, or raise it for very large ones. 0 means the default:
+
+```cpp
+Image({.file = "scan.tiff", .max_side = 2048})              // decoded at most 2048 pixels wide or high
+Image({.data = uploaded, .max_pixels = 4096 * 4096})        // refuse anything larger
+```
+
+```rust
+# let uploaded: &'static [u8] = &[];
+Image(ImageSource::file("/path/to/scan.tiff").max_side(2048)) // decoded at most 2048 pixels wide or high
+Image(ImageSource::data(uploaded).max_pixels(4096 * 4096))     // refuse anything larger
+```
+
 ## Sizing
 
 An image is drawn at its own size (its pixels divided by its scale). Make it `.resizable()` to
@@ -91,7 +111,8 @@ AsyncImage("https://example.com/avatar.png", content_mode: .fill)
 
 With `content_mode` the image is resizable and keeps its aspect ratio that way; without it, it's
 shown at its own size. Downloads are cached in memory, so a list that scrolls back doesn't fetch
-the same images again.
+the same images again. `AsyncImage` has the same `max_side` and `max_pixels` limits, and an image
+over `max_pixels` counts as a failed download.
 
 Downloads are secure by default: certificates are checked against the system's, and a redirect
 never goes from `https` to `http`. A download gives up after 30 seconds, and images over 64 MB are

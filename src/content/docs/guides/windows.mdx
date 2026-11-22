@@ -150,7 +150,7 @@ fn main() -> Result<std::process::ExitCode, Error> {
 ```
 
 For other differences between platforms, `current_platform()` returns
-<Lang only="cpp" inline>`Platform::windows`, `macos`, or `linux`. It's an ordinary function that runs when the app does, so it can't be used in `if constexpr` or `static_assert`; the same goes for `primary_modifier()`.</Lang><Lang only="rust" inline>`Platform::Windows`, `MacOS`, or `Linux`.</Lang>
+<Lang only="cpp" inline>`Platform::windows`, `macos`, `linux`, or `mikros`. Later versions of Elegance may add platforms, so a `switch` over the values needs a `default` case. It's an ordinary function that runs when the app does, so it can't be used in `if constexpr` or `static_assert`; the same goes for `primary_modifier()`.</Lang><Lang only="rust" inline>`Platform::Windows`, `MacOS`, or `Linux`.</Lang>
 
 ### The window a view is in
 

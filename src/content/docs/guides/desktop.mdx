@@ -10,7 +10,7 @@ import Lang from '../../../components/Lang.astro';
 These use the system's own dialogs and services, so they look and behave the way people expect on
 each platform. Use them on the UI thread while the app is running. Their callbacks run on the UI
 thread too, so they can change state.
-<Lang only="rust" inline>In Rust, they're in `elegance::desktop`, which the prelude doesn't include.</Lang>
+<Lang only="rust" inline>In Rust, they're in `elegance::desktop`, and the prelude includes them.</Lang>
 
 ## File dialogs
 
@@ -31,8 +31,6 @@ choose_folders({}, [=](std::vector<std::filesystem::path> folders) { /* ... */ }
 ```
 
 ```rust
-use elegance::desktop::*;
-
 # use std::path::PathBuf;
 # let photos = State::new(Vec::<PathBuf>::new());
 # let save_notes = |_: PathBuf| {};

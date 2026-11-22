@@ -140,6 +140,7 @@ between columns and rows.
 
 ## In your own layouts
 
-<Lang only="cpp">`VGridLayout`, `HGridLayout`, and `GridLayout` are the layouts behind these views, and `resolve_grid_tracks` is their column sizing.</Lang>
-<Lang only="rust">`VGridLayout`, `HGridLayout`, and `GridLayout` are the layouts behind these views.</Lang>
+`VGridLayout`, `HGridLayout`, and `GridLayout` are the layouts behind these views.
+`resolve_grid_tracks` works out their columns' sizes, and `grid_tracks_length` the space those
+columns take, with the spacing between them.
 You can use them inside your own [custom layouts](../custom-layouts/).

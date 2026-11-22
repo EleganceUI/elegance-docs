@@ -35,7 +35,7 @@ The rest of this page sets up a project from scratch.
 
 ## Requirements
 
-- **Rust**, a recent stable toolchain (edition 2024).
+- **Rust** 1.88 or later (edition 2024).
 - **Windows 10 or 11**, **macOS 13.3 or later**, or **Linux** with glibc 2.35 or later.
 - `curl` and `tar`, which Windows, macOS, and Linux distributions include.
 - A GPU with Direct3D 12, Metal, or Vulkan drivers.
@@ -79,22 +79,26 @@ The rest of this page sets up a project from scratch.
    cargo run
    ```
 
-   The first build downloads Elegance's native library (`elegance_c`) for your platform and
-   copies it next to your executable. Later builds reuse it from a shared cache.
+   The first build downloads a prebuilt Elegance for your platform and links it into your
+   executable. Later builds reuse it from a shared cache.
 
 </Steps>
 
 ## Shipping an app
 
-The native library has to travel with your executable: keep it in the same folder. On Linux, also
-give the executable an rpath of `$ORIGIN` so it finds the library there:
+Elegance and its C++ dependencies are linked into your executable. Only a few libraries stay
+separate, and Cargo copies them next to it: AccessKit, the accessibility library (`accesskit.dll`,
+`libaccesskit.dylib`, or `libaccesskit.so`), and on Windows, DirectX's shader compiler
+(`dxcompiler.dll` and `dxil.dll`) when the download includes it. Ship them in the same folder as
+your executable. On Linux, also give the executable an rpath of `$ORIGIN` so it finds AccessKit
+there:
 
 ```toml title=".cargo/config.toml"
 [target.'cfg(target_os = "linux")']
 rustflags = ["-C", "link-args=-Wl,-rpath,$ORIGIN"]
 ```
 
-On macOS, the library is already set up to load from beside the executable. Signing and
+On macOS, AccessKit is already set up to load from beside the executable. Signing and
 notarizing the app are up to you, as with any Mac app.
 
 ## Building Elegance from source
@@ -103,7 +107,7 @@ Cargo builds Elegance from source instead of downloading it when there's no preb
 your target, when you set `ELEGANCE_PREBUILT=0`, or when you use [previews and hot
 reload](../../guides/hot-reload/), which need the shared library. A source build needs the same
 tools as a C++ project (Visual Studio's C++ workload, Xcode 26, or GCC 14), and the first one takes
-about half an hour. The [elegance-rs README](https://github.com/EleganceUI/elegance-rs#using-it)
+about half an hour. elegance-rs's [build guide](https://github.com/EleganceUI/elegance-rs/blob/main/docs/building.md)
 lists the environment variables that control where Elegance comes from.
 
 </Lang>

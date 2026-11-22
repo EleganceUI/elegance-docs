@@ -53,13 +53,27 @@ split your app into a library and a binary: `cargo elegance` builds your app a s
 library the preview window can load, in `target/elegance-preview`, so your normal builds aren't
 disturbed. In those, `#[preview]` functions are left out, so they cost your app nothing.
 
-`-p`, `--bin`, `--features`, and `--release` choose what to build, as with `cargo build`, and
-`--watch` adds folders to watch besides `src/` and `assets/`.
+`-p`, `--bin`, `--features` (or `-F`), and `--release` choose what to build, as with `cargo build`,
+and `--watch` adds folders to watch besides `src/` and `assets/`. Options can also be written as
+`--name=value`.
 
 <Aside>
 Previews need Elegance built as a shared library, which `cargo elegance` asks for. That's built
 from source rather than downloaded, so the first preview takes a while.
 </Aside>
+
+### Your own host
+
+To show your views with hot reload in a program of your own, rather than in `cargo elegance
+preview`, turn on elegance's `dynamic` feature in that program, and show a `HotReload` view. Give it
+the module's path, and a command to rebuild it: `cargo elegance build-module`, with the same
+options as `preview`, builds the views module and prints its path. `.watch(...)` says which folders
+to watch, and `.show(HotReloadShow::Previews)` shows the previews instead of the root.
+
+If the host and the views share types, such as a store, give both sides the same hash of those
+types: `elegance::layout_hash!(Store, Settings)`, passed to `#[preview(root, app_hash = ...)]` in
+the views and to `HotReload::app_hash` in the host. A reload that changes those types then asks
+for a restart instead of loading the new views.
 
 ### What survives a reload
 

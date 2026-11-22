@@ -52,8 +52,8 @@ Circle()
     .animation(Animation::spring(0.35, 0.7), on)
 ```
 
-The value can be a state, a closure, or a plain value; Elegance compares it to its previous value
-to see whether it changed.<Lang only="cpp" inline> An empty `std::function` or a null pointer as the value throws `UsageError`.</Lang>
+The value can be <Lang only="cpp" inline>a state, a closure, or a plain value</Lang><Lang only="rust" inline>a closure, a `State`, a `Computed`, or a `Binding`</Lang>; Elegance compares it to its
+previous value to see whether it changed.<Lang only="cpp" inline> An empty `std::function` or a null pointer as the value throws `UsageError`.</Lang>
 
 ## Curves and springs
 
